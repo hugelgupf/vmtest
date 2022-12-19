@@ -6,7 +6,6 @@ package vmtest
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path"
@@ -19,8 +18,6 @@ import (
 	"github.com/u-root/u-root/pkg/cmdline"
 	"github.com/u-root/u-root/pkg/cp"
 	"github.com/u-root/u-root/pkg/golang"
-	"github.com/u-root/u-root/pkg/testutil"
-	"github.com/u-root/u-root/pkg/uio"
 	"github.com/u-root/u-root/pkg/ulog"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -70,115 +67,6 @@ type Options struct {
 	// collected and saved to:
 	//   u-root/integration/coverage/{{testname}}/{{instance}}/kernel_coverage.tar
 	NoKernelCoverage bool
-}
-
-// Tests are run from u-root/integration/{gotests,generic-tests}/
-const coveragePath = "../coverage"
-
-// Keeps track of the number of instances per test so we do not overlap
-// coverage reports.
-var instance = map[string]int{}
-
-func last(s string) string {
-	l := strings.Split(s, ".")
-	return l[len(l)-1]
-}
-
-func callerName(depth int) string {
-	// Use the test name as the serial log's file name.
-	pc, _, _, ok := runtime.Caller(depth)
-	if !ok {
-		panic("runtime caller failed")
-	}
-	f := runtime.FuncForPC(pc)
-	return last(f.Name())
-}
-
-// TestLineWriter is an io.Writer that logs full lines of serial to tb.
-func TestLineWriter(tb testing.TB, prefix string) io.WriteCloser {
-	return uio.FullLineWriter(&testLineWriter{tb: tb, prefix: prefix})
-}
-
-type jsonStripper struct {
-	uio.LineWriter
-}
-
-func (j jsonStripper) OneLine(p []byte) {
-	// Poor man's JSON detector.
-	if len(p) == 0 || p[0] == '{' {
-		return
-	}
-	j.LineWriter.OneLine(p)
-}
-
-func JSONLessTestLineWriter(tb testing.TB, prefix string) io.WriteCloser {
-	return uio.FullLineWriter(jsonStripper{&testLineWriter{tb: tb, prefix: prefix}})
-}
-
-// testLineWriter is an io.Writer that logs full lines of serial to tb.
-type testLineWriter struct {
-	tb     testing.TB
-	prefix string
-}
-
-func replaceCtl(str []byte) []byte {
-	for i, c := range str {
-		if c == 9 || c == 10 {
-		} else if c < 32 || c == 127 {
-			str[i] = '~'
-		}
-	}
-	return str
-}
-
-func (tsw *testLineWriter) OneLine(p []byte) {
-	tsw.tb.Logf("%s %s: %s", testutil.NowLog(), tsw.prefix, string(replaceCtl(p)))
-}
-
-// TestArch returns the architecture under test. Pass this as GOARCH when
-// building Go programs to be run in the QEMU environment.
-func TestArch() string {
-	if env := os.Getenv("UROOT_TESTARCH"); env != "" {
-		return env
-	}
-	return "amd64"
-}
-
-// SkipWithoutQEMU skips the test when the QEMU environment variables are not
-// set. This is already called by QEMUTest(), so use if some expensive
-// operations are performed before calling QEMUTest().
-func SkipWithoutQEMU(t *testing.T) {
-	if _, ok := os.LookupEnv("UROOT_QEMU"); !ok {
-		t.Skip("QEMU vmtest is skipped unless UROOT_QEMU is set")
-	}
-	if _, ok := os.LookupEnv("UROOT_KERNEL"); !ok {
-		t.Skip("QEMU vmtest is skipped unless UROOT_KERNEL is set")
-	}
-}
-
-func SkipIfNotInVM(t testing.TB) {
-	if !cmdline.ContainsFlag("uroot.vmtest") {
-		t.Skip("Skipping test -- must be run inside vmtest VM")
-	}
-}
-
-func saveCoverage(t *testing.T, path string) error {
-	// Coverage may not have been collected, for example if the kernel is
-	// not built with CONFIG_GCOV_KERNEL.
-	if fi, err := os.Stat(path); os.IsNotExist(err) || (err != nil && !fi.Mode().IsRegular()) {
-		return nil
-	}
-
-	// Move coverage to common directory.
-	uniqueCoveragePath := filepath.Join(coveragePath, t.Name(), fmt.Sprintf("%d", instance[t.Name()]))
-	instance[t.Name()]++
-	if err := os.MkdirAll(uniqueCoveragePath, 0o770); err != nil {
-		return err
-	}
-	if err := os.Rename(path, filepath.Join(uniqueCoveragePath, filepath.Base(path))); err != nil {
-		return err
-	}
-	return nil
 }
 
 func QEMUTest(t *testing.T, o *Options) (*qemu.VM, func()) {
@@ -279,6 +167,74 @@ func QEMU(o *Options) (*qemu.Options, error) {
 	}
 
 	return &o.QEMUOpts, nil
+}
+
+// Tests are run from u-root/integration/{gotests,generic-tests}/
+const coveragePath = "../coverage"
+
+// Keeps track of the number of instances per test so we do not overlap
+// coverage reports.
+var instance = map[string]int{}
+
+func last(s string) string {
+	l := strings.Split(s, ".")
+	return l[len(l)-1]
+}
+
+func callerName(depth int) string {
+	// Use the test name as the serial log's file name.
+	pc, _, _, ok := runtime.Caller(depth)
+	if !ok {
+		panic("runtime caller failed")
+	}
+	f := runtime.FuncForPC(pc)
+	return last(f.Name())
+}
+
+// TestArch returns the architecture under test. Pass this as GOARCH when
+// building Go programs to be run in the QEMU environment.
+func TestArch() string {
+	if env := os.Getenv("UROOT_TESTARCH"); env != "" {
+		return env
+	}
+	return "amd64"
+}
+
+// SkipWithoutQEMU skips the test when the QEMU environment variables are not
+// set. This is already called by QEMUTest(), so use if some expensive
+// operations are performed before calling QEMUTest().
+func SkipWithoutQEMU(t *testing.T) {
+	if _, ok := os.LookupEnv("UROOT_QEMU"); !ok {
+		t.Skip("QEMU vmtest is skipped unless UROOT_QEMU is set")
+	}
+	if _, ok := os.LookupEnv("UROOT_KERNEL"); !ok {
+		t.Skip("QEMU vmtest is skipped unless UROOT_KERNEL is set")
+	}
+}
+
+func SkipIfNotInVM(t testing.TB) {
+	if !cmdline.ContainsFlag("uroot.vmtest") {
+		t.Skip("Skipping test -- must be run inside vmtest VM")
+	}
+}
+
+func saveCoverage(t *testing.T, path string) error {
+	// Coverage may not have been collected, for example if the kernel is
+	// not built with CONFIG_GCOV_KERNEL.
+	if fi, err := os.Stat(path); os.IsNotExist(err) || (err != nil && !fi.Mode().IsRegular()) {
+		return nil
+	}
+
+	// Move coverage to common directory.
+	uniqueCoveragePath := filepath.Join(coveragePath, t.Name(), fmt.Sprintf("%d", instance[t.Name()]))
+	instance[t.Name()]++
+	if err := os.MkdirAll(uniqueCoveragePath, 0o770); err != nil {
+		return err
+	}
+	if err := os.Rename(path, filepath.Join(uniqueCoveragePath, filepath.Base(path))); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ChooseTestInitramfs chooses which initramfs will be used for a given test and
