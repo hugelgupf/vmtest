@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest"
-	"github.com/u-root/u-root/pkg/testutil"
 )
 
 func TestStartVM(t *testing.T) {
@@ -12,7 +11,7 @@ func TestStartVM(t *testing.T) {
 }
 
 func TestHelloWorld(t *testing.T) {
-	testutil.SkipIfNotRoot(t)
+	vmtest.SkipIfNotInVM(t)
 
 	t.Logf("Hello world")
 }

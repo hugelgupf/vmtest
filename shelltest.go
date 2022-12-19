@@ -7,7 +7,9 @@ import (
 	"testing"
 )
 
-// TestCmdsInVM compiles the unit tests found in pkgs and runs them in a QEMU VM.
+// TestCmdsInVM starts a VM, runs the commands in testCmds in a shell.
+//
+// TODO: It should check their exit status. Hahaha.
 //
 // Generates an Elvish script with these commands. The script is
 // shared with the VM, and is run from the generic uinit.

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/u-root/u-root/pkg/cmdline"
 	"github.com/u-root/u-root/pkg/cp"
 	"github.com/u-root/u-root/pkg/golang"
 	"github.com/u-root/u-root/pkg/testutil"
@@ -27,6 +28,12 @@ import (
 
 // Options are integration test options.
 type Options struct {
+	// Name is the test's name.
+	//
+	// If name is left empty, the calling function's function name will be
+	// used as determined by runtime.Caller.
+	Name string
+
 	// BuildOpts are u-root initramfs options.
 	//
 	// They are used if the test needs to generate an initramfs.
@@ -34,28 +41,22 @@ type Options struct {
 	// possible.
 	BuildOpts uroot.Opts
 
-	// QEMUOpts are QEMU VM options for the test.
-	//
-	// Fields that are not set are populated by QEMU and QEMUTest as
-	// possible.
-	QEMUOpts qemu.Options
-
 	// DontSetEnv doesn't set the BuildOpts.Env and uses the user-supplied one.
 	//
 	// TODO: make uroot.Opts.Env a pointer?
 	DontSetEnv bool
-
-	// Name is the test's name.
-	//
-	// If name is left empty, the calling function's function name will be
-	// used as determined by runtime.Caller.
-	Name string
 
 	// Uinit is the uinit that should be added to a generated initramfs.
 	//
 	// If none is specified, the generic uinit will be used, which searches for
 	// and runs the script generated from TestCmds.
 	Uinit string
+
+	// QEMUOpts are QEMU VM options for the test.
+	//
+	// Fields that are not set are populated by QEMU and QEMUTest as
+	// possible.
+	QEMUOpts qemu.Options
 
 	// TmpDir is the temporary directory exposed to the QEMU VM.
 	TmpDir string
@@ -147,10 +148,16 @@ func TestArch() string {
 // operations are performed before calling QEMUTest().
 func SkipWithoutQEMU(t *testing.T) {
 	if _, ok := os.LookupEnv("UROOT_QEMU"); !ok {
-		t.Skip("QEMU test is skipped unless UROOT_QEMU is set")
+		t.Skip("QEMU vmtest is skipped unless UROOT_QEMU is set")
 	}
 	if _, ok := os.LookupEnv("UROOT_KERNEL"); !ok {
-		t.Skip("QEMU test is skipped unless UROOT_KERNEL is set")
+		t.Skip("QEMU vmtest is skipped unless UROOT_KERNEL is set")
+	}
+}
+
+func SkipIfNotInVM(t testing.TB) {
+	if !cmdline.ContainsFlag("uroot.vmtest") {
+		t.Skip("Skipping test -- must be run inside vmtest VM")
 	}
 }
 
