@@ -45,14 +45,6 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 		o.TmpDir = tmpDir
 	}
 
-	/*if o.BuildOpts.UrootSource == "" {
-		sourcePath, ok := os.LookupEnv("UROOT_SOURCE")
-		if !ok {
-			t.Fatal("This test needs UROOT_SOURCE set to the absolute path of the checked out u-root source")
-		}
-		o.BuildOpts.UrootSource = sourcePath
-	}*/
-
 	// Set up u-root build options.
 	env := golang.Default()
 	env.CgoEnabled = false
@@ -92,7 +84,9 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 			args = append(args, "-covermode=atomic")
 		}
 
+		// TODO: replace this with usage of golang package.
 		cmd := exec.Command("go", args...)
+		cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 		if stderr, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("could not build %s: %v\n%s", pkg, err, string(stderr))
 		}
@@ -116,7 +110,10 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 	}
 
 	// Create the CPIO and start QEMU.
-	o.BuildOpts.AddBusyBoxCommands("github.com/u-root/u-root/cmds/core/*")
+	o.BuildOpts.AddBusyBoxCommands(
+		"github.com/u-root/u-root/cmds/core/init",
+		"github.com/u-root/u-root/cmds/core/dhclient",
+		"github.com/u-root/u-root/cmds/core/elvish")
 	o.BuildOpts.AddCommands(uroot.BinaryCmds("cmd/test2json")...)
 
 	// Specify the custom gotest uinit.

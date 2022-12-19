@@ -341,14 +341,6 @@ func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string
 		o.Env = env
 	}
 
-	/*if o.UrootSource == "" {
-		sourcePath, ok := os.LookupEnv("UROOT_SOURCE")
-		if !ok {
-			return "", fmt.Errorf("failed to get u-root source directory, please set UROOT_SOURCE to the absolute path of the u-root source directory")
-		}
-		o.UrootSource = sourcePath
-	}*/
-
 	logger := log.New(os.Stderr, "", 0)
 
 	// If build opts don't specify any commands, include all commands. Else,
@@ -356,11 +348,12 @@ func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string
 	var cmds []string
 	if len(o.Commands) == 0 {
 		cmds = []string{
-			"github.com/u-root/u-root/cmds/core/*",
-			"github.com/u-root/u-root/cmds/exp/*",
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/u-root/u-root/cmds/core/elvish",
 		}
 	}
 
+	// TODO: some kind of uinit must be specified.
 	if len(uinit) != 0 {
 		cmds = append(cmds, uinit)
 	}
