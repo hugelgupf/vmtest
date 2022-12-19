@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/u-root/u-root/integration/testcmd/common"
+	"github.com/hugelgupf/vmtest/testcmd/common"
 	"golang.org/x/sys/unix"
 )
 
