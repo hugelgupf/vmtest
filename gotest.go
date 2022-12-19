@@ -26,23 +26,16 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 	if TestArch() != "amd64" && TestArch() != "arm64" {
 		t.Skipf("test not supported on %s", TestArch())
 	}
+	if o == nil {
+		o = &Options{}
+	}
+	if o.TmpDir == "" {
+		o.TmpDir = t.TempDir()
+	}
 
 	vmCoverProfile, ok := os.LookupEnv("UROOT_QEMU_COVERPROFILE")
 	if !ok {
 		t.Log("QEMU test coverage is not collected unless UROOT_QEMU_COVERPROFILE is set")
-	}
-
-	if o == nil {
-		o = &Options{}
-	}
-
-	// Create a temporary directory.
-	if len(o.TmpDir) == 0 {
-		tmpDir, err := os.MkdirTemp("", "uroot-integration")
-		if err != nil {
-			t.Fatal(err)
-		}
-		o.TmpDir = tmpDir
 	}
 
 	// Set up u-root build options.
@@ -65,6 +58,8 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 		}
 	}
 
+	// Compile the Go tests. Place the test binaries in a directory that
+	// will be shared with the VM using 9P.
 	for _, pkg := range pkgs {
 		pkgDir := filepath.Join(testDir, pkg)
 		if err := os.MkdirAll(pkgDir, 0o755); err != nil {
@@ -109,14 +104,12 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 		}
 	}
 
-	// Create the CPIO and start QEMU.
-	o.BuildOpts.AddBusyBoxCommands(
-		"github.com/u-root/u-root/cmds/core/init",
-		"github.com/u-root/u-root/cmds/core/dhclient",
-		"github.com/u-root/u-root/cmds/core/elvish")
+	// Add some necessary commands to the VM.
+	o.BuildOpts.AddBusyBoxCommands("github.com/u-root/u-root/cmds/core/dhclient")
 	o.BuildOpts.AddCommands(uroot.BinaryCmds("cmd/test2json")...)
 
-	// Specify the custom gotest uinit.
+	// Specify the custom gotest uinit, which will mount the 9P file system
+	// and run the tests from there.
 	o.Uinit = "github.com/hugelgupf/vmtest/testcmd/gotest/uinit"
 
 	tc := json2test.NewTestCollector()
@@ -134,10 +127,11 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 		o.QEMUOpts.KernelArgs += " uroot.uinitargs=-coverprofile=/testdata/coverage.profile"
 	}
 
-	q, cleanup := QEMUTest(t, o)
+	// Create the initramfs and start the VM.
+	vm, cleanup := QEMUTest(t, o)
 	defer cleanup()
 
-	if err := q.Expect("TESTS PASSED MARKER"); err != nil {
+	if err := vm.Expect("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
 	}
 

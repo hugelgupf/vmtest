@@ -8,8 +8,7 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	// Run the read-write tests from fsimpl/test/rwvm.
-	vmtest.GolangTest(t, []string{"github.com/hugelgupf/vmtest/tests/helloworld"}, nil)
+	vmtest.GolangTest(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, nil)
 }
 
 func TestHelloWorld(t *testing.T) {

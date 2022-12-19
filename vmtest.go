@@ -57,23 +57,11 @@ type Options struct {
 	// and runs the script generated from TestCmds.
 	Uinit string
 
-	// TestCmds are commands to execute after init.
-	//
-	// QEMUTest generates an Elvish script with these commands. The script is
-	// shared with the VM, and is run from the generic uinit.
-	TestCmds []string
-
 	// TmpDir is the temporary directory exposed to the QEMU VM.
 	TmpDir string
 
 	// Logger logs build statements.
 	Logger ulog.Logger
-
-	// Extra environment variables to set when building (used by u-bmc)
-	ExtraBuildEnv []string
-
-	// Use virtual vfat rather than 9pfs
-	UseVVFAT bool
 
 	// By default, if your kernel has CONFIG_DEBUG_FS=y and
 	// CONFIG_GCOV_KERNEL=y enabled, the kernel's coverage will be
@@ -205,14 +193,8 @@ func QEMUTest(t *testing.T, o *Options) (*qemu.VM, func()) {
 	if o.QEMUOpts.SerialOutput == nil {
 		o.QEMUOpts.SerialOutput = TestLineWriter(t, "serial")
 	}
-
-	// Create or reuse a temporary directory. This is exposed to the VM.
 	if o.TmpDir == "" {
-		tmpDir, err := os.MkdirTemp("", "uroot-integration")
-		if err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		o.TmpDir = tmpDir
+		o.TmpDir = t.TempDir()
 	}
 
 	qOpts, err := QEMU(o)
@@ -257,16 +239,6 @@ func QEMU(o *Options) (*qemu.Options, error) {
 		o.Name = callerName(2)
 	}
 
-	// Generate Elvish shell script of test commands in o.TmpDir.
-	if len(o.TestCmds) > 0 {
-		testFile := filepath.Join(o.TmpDir, "test.elv")
-
-		if err := os.WriteFile(
-			testFile, []byte(strings.Join(o.TestCmds, "\n")), 0o777); err != nil {
-			return nil, err
-		}
-	}
-
 	// Set the initramfs.
 	if len(o.QEMUOpts.Initramfs) == 0 {
 		o.QEMUOpts.Initramfs = filepath.Join(o.TmpDir, "initramfs.cpio")
@@ -292,13 +264,7 @@ func QEMU(o *Options) (*qemu.Options, error) {
 	}
 	o.QEMUOpts.KernelArgs += " uroot.vmtest"
 
-	var dir qemu.Device
-	if o.UseVVFAT {
-		dir = qemu.ReadOnlyDirectory{Dir: o.TmpDir}
-	} else {
-		dir = qemu.P9Directory{Dir: o.TmpDir, Arch: TestArch()}
-	}
-	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices, qemu.VirtioRandom{}, dir)
+	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices, qemu.VirtioRandom{}, qemu.P9Directory{Dir: o.TmpDir, Arch: TestArch()})
 
 	if o.NoKernelCoverage {
 		o.QEMUOpts.KernelArgs += " UROOT_NO_KERNEL_COVERAGE=1"
@@ -315,7 +281,7 @@ func QEMU(o *Options) (*qemu.Options, error) {
 func ChooseTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string) error {
 	override := os.Getenv("UROOT_INITRAMFS")
 	if len(override) > 0 {
-		log.Printf("Overriding with initramfs %q", override)
+		log.Printf("Overriding with initramfs %q from UROOT_INITRAMFS", override)
 		return cp.Copy(override, outputFile)
 	}
 
@@ -345,21 +311,15 @@ func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string
 
 	// If build opts don't specify any commands, include all commands. Else,
 	// always add init and elvish.
-	var cmds []string
-	if len(o.Commands) == 0 {
-		cmds = []string{
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/u-root/u-root/cmds/core/elvish",
-		}
-	}
+	o.AddBusyBoxCommands(
+		"github.com/u-root/u-root/cmds/core/init",
+		"github.com/u-root/u-root/cmds/core/elvish",
+	)
 
-	// TODO: some kind of uinit must be specified.
+	// TODO: some kind of uinit must be specified by the user.
 	if len(uinit) != 0 {
-		cmds = append(cmds, uinit)
+		o.AddBusyBoxCommands(uinit)
 	}
-
-	// Add our commands to the build opts.
-	o.AddBusyBoxCommands(cmds...)
 
 	// Fill in the default build options if not specified.
 	if o.BaseArchive == nil {
@@ -390,9 +350,12 @@ func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string
 	}
 	w, err := initramfs.CPIO.OpenWriter(logger, outputFile)
 	if err != nil {
-		return "", fmt.Errorf("Failed to create initramfs writer: %v", err)
+		return "", fmt.Errorf("failed to create initramfs writer: %v", err)
 	}
 	o.OutputFile = w
 
-	return outputFile, uroot.CreateInitramfs(logger, o)
+	if err := uroot.CreateInitramfs(logger, o); err != nil {
+		return "", fmt.Errorf("error creating initramfs: %v", err)
+	}
+	return outputFile, nil
 }
