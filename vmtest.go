@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -326,6 +327,7 @@ func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string
 	// TODO: some kind of uinit must be specified by the user.
 	if len(uinit) != 0 {
 		o.AddBusyBoxCommands(uinit)
+		o.UinitCmd = path.Base(uinit)
 	}
 
 	// Fill in the default build options if not specified.

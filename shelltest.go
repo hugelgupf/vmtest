@@ -34,7 +34,7 @@ func TestCmdsInVM(t *testing.T, testCmds []string, o *Options) {
 	if len(o.Uinit) > 0 {
 		t.Fatalf("TestCmdsInVM has a uinit already set")
 	}
-	o.Uinit = "github.com/hugelgupf/vmtest/testcmd/generic/uinit"
+	o.Uinit = "github.com/hugelgupf/vmtest/testcmd/shelluinit"
 
 	vm, cleanup := QEMUTest(t, o)
 	defer cleanup()
