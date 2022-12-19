@@ -11,7 +11,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/hugelgupf/vmtest/testcmd/common"
+	"github.com/hugelgupf/vmtest/vminit/common"
 	"golang.org/x/sys/unix"
 )
 

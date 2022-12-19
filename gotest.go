@@ -110,7 +110,7 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 
 	// Specify the custom gotest uinit, which will mount the 9P file system
 	// and run the tests from there.
-	o.Uinit = "github.com/hugelgupf/vmtest/testcmd/gouinit"
+	o.Uinit = "github.com/hugelgupf/vmtest/vminit/gouinit"
 
 	tc := json2test.NewTestCollector()
 	serial := []io.Writer{
