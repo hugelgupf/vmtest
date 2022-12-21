@@ -31,10 +31,11 @@ func TestCmdsInVM(t *testing.T, testCmds []string, o *Options) {
 		}
 	}
 
-	if len(o.Uinit) > 0 {
+	if len(o.BuildOpts.UinitCmd) > 0 {
 		t.Fatalf("TestCmdsInVM has a uinit already set")
 	}
-	o.Uinit = "github.com/hugelgupf/vmtest/vminit/shelluinit"
+	o.BuildOpts.AddBusyBoxCommands("github.com/hugelgupf/vmtest/vminit/shelluinit")
+	o.BuildOpts.UinitCmd = "shelluinit"
 
 	vm, cleanup := QEMUTest(t, o)
 	defer cleanup()

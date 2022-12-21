@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -23,6 +22,13 @@ import (
 	"github.com/u-root/u-root/pkg/uroot"
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 )
+
+// Tests are run from u-root/integration/{gotests,generic-tests}/
+const coveragePath = "../coverage"
+
+// Keeps track of the number of instances per test so we do not overlap
+// coverage reports.
+var instance = map[string]int{}
 
 // Options are integration test options.
 type Options struct {
@@ -43,12 +49,6 @@ type Options struct {
 	//
 	// TODO: make uroot.Opts.Env a pointer?
 	DontSetEnv bool
-
-	// Uinit is the uinit that should be added to a generated initramfs.
-	//
-	// If none is specified, the generic uinit will be used, which searches for
-	// and runs the script generated from TestCmds.
-	Uinit string
 
 	// QEMUOpts are QEMU VM options for the test.
 	//
@@ -138,7 +138,7 @@ func QEMU(o *Options) (*qemu.Options, error) {
 	// Set the initramfs.
 	if len(o.QEMUOpts.Initramfs) == 0 {
 		o.QEMUOpts.Initramfs = filepath.Join(o.TmpDir, "initramfs.cpio")
-		if err := ChooseTestInitramfs(o.DontSetEnv, o.BuildOpts, o.Uinit, o.QEMUOpts.Initramfs); err != nil {
+		if err := ChooseTestInitramfs(o.DontSetEnv, o.BuildOpts, o.QEMUOpts.Initramfs); err != nil {
 			return nil, err
 		}
 	}
@@ -168,13 +168,6 @@ func QEMU(o *Options) (*qemu.Options, error) {
 
 	return &o.QEMUOpts, nil
 }
-
-// Tests are run from u-root/integration/{gotests,generic-tests}/
-const coveragePath = "../coverage"
-
-// Keeps track of the number of instances per test so we do not overlap
-// coverage reports.
-var instance = map[string]int{}
 
 func last(s string) string {
 	l := strings.Split(s, ".")
@@ -242,28 +235,23 @@ func saveCoverage(t *testing.T, path string) error {
 // Default to the override initramfs if one is specified in the UROOT_INITRAMFS
 // environment variable. Else, build an initramfs with the given parameters.
 // If no uinit was provided, the generic one is used.
-func ChooseTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string) error {
+func ChooseTestInitramfs(dontSetEnv bool, o uroot.Opts, outputFile string) error {
 	override := os.Getenv("UROOT_INITRAMFS")
 	if len(override) > 0 {
 		log.Printf("Overriding with initramfs %q from UROOT_INITRAMFS", override)
 		return cp.Copy(override, outputFile)
 	}
 
-	if len(uinit) == 0 {
-		log.Printf("Defaulting to generic initramfs")
-		uinit = "github.com/hugelupf/vmtest/testcmd/generic/uinit"
-	}
-
-	_, err := CreateTestInitramfs(dontSetEnv, o, uinit, outputFile)
+	_, err := CreateTestInitramfs(dontSetEnv, o, outputFile)
 	return err
 }
 
-// CreateTestInitramfs creates an initramfs with the given build options and
-// uinit, and writes it to the given output file. If no output file is provided,
+// CreateTestInitramfs creates an initramfs with the given build options
+// and writes it to the given output file. If no output file is provided,
 // one will be created.
 // The output file name is returned. It is the caller's responsibility to remove
 // the initramfs file after use.
-func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string) (string, error) {
+func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, outputFile string) (string, error) {
 	if !dontSetEnv {
 		env := golang.Default()
 		env.CgoEnabled = false
@@ -279,12 +267,6 @@ func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, uinit, outputFile string
 		"github.com/u-root/u-root/cmds/core/init",
 		"github.com/u-root/u-root/cmds/core/elvish",
 	)
-
-	// TODO: some kind of uinit must be specified by the user.
-	if len(uinit) != 0 {
-		o.AddBusyBoxCommands(uinit)
-		o.UinitCmd = path.Base(uinit)
-	}
 
 	// Fill in the default build options if not specified.
 	if o.BaseArchive == nil {

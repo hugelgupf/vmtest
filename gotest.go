@@ -105,12 +105,12 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 	}
 
 	// Add some necessary commands to the VM.
-	o.BuildOpts.AddBusyBoxCommands("github.com/u-root/u-root/cmds/core/dhclient")
+	o.BuildOpts.AddBusyBoxCommands("github.com/u-root/u-root/cmds/core/dhclient", "github.com/hugelgupf/vmtest/vminit/gouinit")
 	o.BuildOpts.AddCommands(uroot.BinaryCmds("cmd/test2json")...)
 
 	// Specify the custom gotest uinit, which will mount the 9P file system
 	// and run the tests from there.
-	o.Uinit = "github.com/hugelgupf/vmtest/vminit/gouinit"
+	o.BuildOpts.UinitCmd = "gouinit"
 
 	tc := json2test.NewTestCollector()
 	serial := []io.Writer{
