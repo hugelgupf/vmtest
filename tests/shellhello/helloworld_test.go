@@ -9,7 +9,7 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.TestCmdsInVM(t, []string{`echo "Hello World"`}, nil)
+	vmtest.RunCmdsInVM(t, []string{`echo "Hello World"`}, nil)
 	/*&vmtest.Options{
 		BuildOpts: uroot.Opts{
 			Commands: []uroot.Commands{

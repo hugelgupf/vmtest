@@ -11,14 +11,19 @@ import (
 	"testing"
 )
 
-// TestCmdsInVM starts a VM, runs the commands in testCmds in a shell.
+// RunCmdsInVM starts a VM and runs each command provided in testCmds in a
+// shell in the VM. If any command fails, the test fails.
+//
+// The VM can be configured with o. The kernel can be provided via o or
+// VMTEST_KERNEL env var. Guest architecture can be set with VMTEST_GOARCH.
+//
+// Underneath, this generates an Elvish script with these commands. The script
+// is shared with the VM and run from a special init.
 //
 // TODO: It should check their exit status. Hahaha.
-//
-// Generates an Elvish script with these commands. The script is
-// shared with the VM, and is run from the generic uinit.
-func TestCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
+func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
+
 	if o == nil {
 		o = &UrootFSOptions{}
 	}
@@ -36,7 +41,7 @@ func TestCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 	}
 
 	if len(o.BuildOpts.UinitCmd) > 0 {
-		t.Fatalf("TestCmdsInVM has a uinit already set")
+		t.Fatalf("RunCmdsInVM must be able to specify a uinit; one was already specified by caller: %s", o.BuildOpts.UinitCmd)
 	}
 	o.BuildOpts.AddBusyBoxCommands("github.com/hugelgupf/vmtest/vminit/shelluinit")
 	o.BuildOpts.UinitCmd = "shelluinit"
