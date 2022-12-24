@@ -95,7 +95,7 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 		o.SharedDir = t.TempDir()
 	}
 
-	os.Setenv("VMTEST_QEMU_ARCH", qemu.GOARCHToQEMUArch[GoTestArch()])
+	os.Setenv("VMTEST_QEMU_ARCH", qemu.GOARCHToQEMUArch[GuestGOARCH()])
 
 	// Set the initramfs.
 	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {
@@ -150,9 +150,9 @@ func chooseTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outp
 	return err
 }
 
-// GoTestArch returns the architecture under test. Pass this as GOARCH when
-// building Go programs to be run in the QEMU environment.
-func GoTestArch() string {
+// GuestGOARCH returns the Guest GOARCH under test. Either VMTEST_GOARCH or
+// runtime.GOARCH.
+func GuestGOARCH() string {
 	if env := os.Getenv("VMTEST_GOARCH"); env != "" {
 		return env
 	}
@@ -168,7 +168,7 @@ func createTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outp
 	if !dontSetEnv {
 		env := golang.Default()
 		env.CgoEnabled = false
-		env.GOARCH = GoTestArch()
+		env.GOARCH = GuestGOARCH()
 		o.Env = env
 	}
 

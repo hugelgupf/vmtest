@@ -19,21 +19,34 @@ import (
 	"github.com/u-root/u-root/pkg/uroot"
 )
 
-// GolangTest compiles the tests found in pkgs and runs them in a QEMU VM
+// RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
 // configured in options `o`. It collects the test results and provides a
 // pass/fail result of each individual test.
 //
-// GolangTest runs tests and benchmarks, but not fuzz tests. (TODO:
-// Configuration for this.)
+// RunGoTestsInVM runs tests and benchmarks, but not fuzz tests. Guest test
+// architecture can be set with VMTEST_GOARCH; arm64 and amd64 are supported.
 //
+// The kernel can be provided via UrootFSOptions or VMTEST_KERNEL env var. The
+// test environment in the VM is very minimal. If a test depends on other
+// binaries or specific files to be present, they must be specified in the
+// options via UrootFSOptions.BuildOpts.
+//
+// All files and directories in the same directory as the test package will be
+// made available to the test in the guest as well (e.g. testdata/
+// directories).
+//
+// Coverage from the Go tests is collected if a coverage file name is specified
+// via the UROOT_QEMU_COVERPROFILE env var.
+//
+// TODO: specify test, bench, fuzz filter. Flags for fuzzing.
 // TODO: test timeout.
 // TODO: check each test's exit status.
-func GolangTest(t *testing.T, pkgs []string, o *UrootFSOptions) {
+func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
 
 	// TODO: support arm
-	if GoTestArch() != "amd64" && GoTestArch() != "arm64" {
-		t.Skipf("test not supported on %s", GoTestArch())
+	if GuestGOARCH() != "amd64" && GuestGOARCH() != "arm64" {
+		t.Skipf("test not supported on %s", GuestGOARCH())
 	}
 
 	if o == nil {
@@ -51,7 +64,7 @@ func GolangTest(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	// Set up u-root build options.
 	env := golang.Default()
 	env.CgoEnabled = false
-	env.GOARCH = GoTestArch()
+	env.GOARCH = GuestGOARCH()
 	o.BuildOpts.Env = env
 
 	// Statically build tests and add them to the temporary directory.
