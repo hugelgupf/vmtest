@@ -100,7 +100,7 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	// Set the initramfs.
 	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {
 		o.VMOptions.QEMUOpts.Initramfs = filepath.Join(o.SharedDir, "initramfs.cpio")
-		if err := ChooseTestInitramfs(o.Logger, o.DontSetEnv, o.BuildOpts, o.VMOptions.QEMUOpts.Initramfs); err != nil {
+		if err := chooseTestInitramfs(o.Logger, o.DontSetEnv, o.BuildOpts, o.VMOptions.QEMUOpts.Initramfs); err != nil {
 			t.Fatalf("Could not choose an initramfs for u-root-initramfs-based VM test: %v", err)
 		}
 	}
@@ -134,19 +134,19 @@ func saveCoverage(t testing.TB, path string) error {
 	return nil
 }
 
-// ChooseTestInitramfs chooses which initramfs will be used for a given test and
+// chooseTestInitramfs chooses which initramfs will be used for a given test and
 // places it at the location given by outputFile.
 // Default to the override initramfs if one is specified in the UROOT_INITRAMFS
 // environment variable. Else, build an initramfs with the given parameters.
 // If no uinit was provided, the generic one is used.
-func ChooseTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) error {
+func chooseTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) error {
 	override := os.Getenv("VMTEST_INITRAMFS")
 	if len(override) > 0 {
 		log.Printf("Overriding with initramfs %q from VMTEST_INITRAMFS", override)
 		return cp.Copy(override, outputFile)
 	}
 
-	_, err := CreateTestInitramfs(logger, dontSetEnv, o, outputFile)
+	_, err := createTestInitramfs(logger, dontSetEnv, o, outputFile)
 	return err
 }
 
@@ -159,12 +159,12 @@ func GoTestArch() string {
 	return runtime.GOARCH
 }
 
-// CreateTestInitramfs creates an initramfs with the given build options
+// createTestInitramfs creates an initramfs with the given build options
 // and writes it to the given output file. If no output file is provided,
 // one will be created.
 // The output file name is returned. It is the caller's responsibility to remove
 // the initramfs file after use.
-func CreateTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) (string, error) {
+func createTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) (string, error) {
 	if !dontSetEnv {
 		env := golang.Default()
 		env.CgoEnabled = false
