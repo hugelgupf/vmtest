@@ -20,17 +20,19 @@ import (
 )
 
 // GolangTest compiles the unit tests found in pkgs and runs them in a QEMU VM.
-func GolangTest(t *testing.T, pkgs []string, o *Options) {
+func GolangTest(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
+
 	// TODO: support arm
 	if TestArch() != "amd64" && TestArch() != "arm64" {
 		t.Skipf("test not supported on %s", TestArch())
 	}
+
 	if o == nil {
-		o = &Options{}
+		o = &UrootFSOptions{}
 	}
-	if o.TmpDir == "" {
-		o.TmpDir = t.TempDir()
+	if o.SharedDir == "" {
+		o.SharedDir = t.TempDir()
 	}
 
 	vmCoverProfile, ok := os.LookupEnv("UROOT_QEMU_COVERPROFILE")
@@ -46,10 +48,10 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 
 	// Statically build tests and add them to the temporary directory.
 	var tests []string
-	testDir := filepath.Join(o.TmpDir, "tests")
+	testDir := filepath.Join(o.SharedDir, "tests")
 
 	if len(vmCoverProfile) > 0 {
-		f, err := os.Create(filepath.Join(o.TmpDir, "coverage.profile"))
+		f, err := os.Create(filepath.Join(o.SharedDir, "coverage.profile"))
 		if err != nil {
 			t.Fatalf("Could not create coverage file %v", err)
 		}
@@ -128,15 +130,15 @@ func GolangTest(t *testing.T, pkgs []string, o *Options) {
 	}
 
 	// Create the initramfs and start the VM.
-	vm, cleanup := QEMUTest(t, o)
-	defer cleanup()
+	vm := StartVMTestVM(t, o)
 
 	if err := vm.Expect("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
 	}
 
+	// Collect Go coverage.
 	if len(vmCoverProfile) > 0 {
-		cov, err := os.Open(filepath.Join(o.TmpDir, "coverage.profile"))
+		cov, err := os.Open(filepath.Join(o.SharedDir, "coverage.profile"))
 		if err != nil {
 			t.Fatalf("No coverage file shared from VM: %v", err)
 		}

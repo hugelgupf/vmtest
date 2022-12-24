@@ -13,18 +13,18 @@ import (
 //
 // Generates an Elvish script with these commands. The script is
 // shared with the VM, and is run from the generic uinit.
-func TestCmdsInVM(t *testing.T, testCmds []string, o *Options) {
+func TestCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
 	if o == nil {
-		o = &Options{}
+		o = &UrootFSOptions{}
 	}
-	if o.TmpDir == "" {
-		o.TmpDir = t.TempDir()
+	if o.SharedDir == "" {
+		o.SharedDir = t.TempDir()
 	}
 
-	// Generate Elvish shell script of test commands in o.TmpDir.
+	// Generate Elvish shell script of test commands in o.SharedDir.
 	if len(testCmds) > 0 {
-		testFile := filepath.Join(o.TmpDir, "test.elv")
+		testFile := filepath.Join(o.SharedDir, "test.elv")
 
 		if err := os.WriteFile(testFile, []byte(strings.Join(testCmds, "\n")), 0o777); err != nil {
 			t.Fatal(err)
@@ -37,8 +37,7 @@ func TestCmdsInVM(t *testing.T, testCmds []string, o *Options) {
 	o.BuildOpts.AddBusyBoxCommands("github.com/hugelgupf/vmtest/vminit/shelluinit")
 	o.BuildOpts.UinitCmd = "shelluinit"
 
-	vm, cleanup := QEMUTest(t, o)
-	defer cleanup()
+	vm := StartVMTestVM(t, o)
 
 	if err := vm.Expect("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)

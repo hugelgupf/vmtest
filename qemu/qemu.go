@@ -46,7 +46,7 @@ func init() {
 type Options struct {
 	// QEMUPath is the path to the QEMU binary to invoke.
 	//
-	// If left unspecified, the UROOT_QEMU env var will be used.
+	// If left unspecified, the VMTEST_QEMU env var will be used.
 	// If the env var is unspecified, "qemu" is the default.
 	QEMUPath string
 
@@ -99,7 +99,7 @@ func (o *Options) Cmdline() ([]string, error) {
 		args = append(args, o.QEMUPath)
 	} else {
 		// Read first few arguments for env.
-		env := os.Getenv("UROOT_QEMU")
+		env := os.Getenv("VMTEST_QEMU")
 		if env == "" {
 			env = "qemu" // default
 		}

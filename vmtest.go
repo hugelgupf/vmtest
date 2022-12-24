@@ -9,12 +9,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/u-root/u-root/pkg/cmdline"
 	"github.com/u-root/u-root/pkg/cp"
 	"github.com/u-root/u-root/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog"
@@ -23,55 +20,14 @@ import (
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 )
 
-// Tests are run from u-root/integration/{gotests,generic-tests}/
-const coveragePath = "../coverage"
-
-// Keeps track of the number of instances per test so we do not overlap
-// coverage reports.
-var instance = map[string]int{}
-
-// Options are integration test options.
-type Options struct {
-	// Name is the test's name.
-	//
-	// If name is left empty, the calling function's function name will be
-	// used as determined by runtime.Caller.
-	Name string
-
-	// BuildOpts are u-root initramfs options.
-	//
-	// They are used if the test needs to generate an initramfs.
-	// Fields that are not set are populated by QEMU and QEMUTest as
-	// possible.
-	BuildOpts uroot.Opts
-
-	// DontSetEnv doesn't set the BuildOpts.Env and uses the user-supplied one.
-	//
-	// TODO: make uroot.Opts.Env a pointer?
-	DontSetEnv bool
-
-	// QEMUOpts are QEMU VM options for the test.
-	//
-	// Fields that are not set are populated by QEMU and QEMUTest as
-	// possible.
-	QEMUOpts qemu.Options
-
-	// TmpDir is the temporary directory exposed to the QEMU VM.
-	TmpDir string
-
-	// Logger logs build statements.
-	Logger ulog.Logger
-
-	// By default, if your kernel has CONFIG_DEBUG_FS=y and
-	// CONFIG_GCOV_KERNEL=y enabled, the kernel's coverage will be
-	// collected and saved to:
-	//   u-root/integration/coverage/{{testname}}/{{instance}}/kernel_coverage.tar
-	NoKernelCoverage bool
-}
-
-func QEMUTest(t *testing.T, o *Options) (*qemu.VM, func()) {
-	SkipWithoutQEMU(t)
-
+// StartVMTestVM starts u-root-based vmtest VMs that conform to vmtest's
+// features and use vmtest's vminit & test framework.
+//
+// They support:
+// - kernel coverage,
+// - TODO: tests passed marker.
+// - TODO: checking exit status of tests in VM.
+func StartVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	// Delete any previous coverage data.
 	if _, ok := instance[t.Name()]; !ok {
 		testCoveragePath := filepath.Join(coveragePath, t.Name())
@@ -80,109 +36,78 @@ func QEMUTest(t *testing.T, o *Options) (*qemu.VM, func()) {
 		}
 	}
 
+	t.Cleanup(func() {
+		if err := saveCoverage(t, filepath.Join(o.SharedDir, "kernel_coverage.tar")); err != nil {
+			t.Logf("Error saving kernel coverage: %v", err)
+		}
+	})
+	return StartUrootFSVM(t, o)
+}
+
+// UrootFSOptions configures a QEMU VM integration test that uses an
+// automatically built u-root initramfs as the root file system.
+type UrootFSOptions struct {
+	// Options are VM configuration options.
+	VMOptions
+
+	// BuildOpts are u-root initramfs build options.
+	//
+	// They are used if the test needs to generate an initramfs.
+	// Fields that are not set are populated as possible.
+	BuildOpts uroot.Opts
+
+	// DontSetEnv doesn't set the BuildOpts.Env and uses the user-supplied one.
+	//
+	// HACK HACK HACK
+	//
+	// TODO: make uroot.Opts.Env a pointer?
+	DontSetEnv bool
+
+	// Logger logs build statements.
+	//
+	// If unset, an implementation that logs to t.Logf is used.
+	Logger ulog.Logger
+}
+
+// StartUrootFSVM creates a u-root initramfs with the given options and starts
+// a QEMU VM with the created u-root file system.
+//
+// It uses a caller-supplied kernel, or if not set, one supplied by the
+// VMTEST_KERNEL env var.
+//
+// If VMTEST_INITRAMFS is set, that initramfs overrides the options set in this
+// test. (This can be used to, for example, run the same test with an initramfs
+// built by bazel rules.)
+func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
+	SkipWithoutQEMU(t)
+
 	if len(o.Name) == 0 {
-		o.Name = callerName(2)
+		o.Name = t.Name()
 	}
 	if o.Logger == nil {
 		o.Logger = &ulogtest.Logger{TB: t}
 	}
-	if o.QEMUOpts.SerialOutput == nil {
-		o.QEMUOpts.SerialOutput = TestLineWriter(t, "serial")
-	}
-	if o.TmpDir == "" {
-		o.TmpDir = t.TempDir()
-	}
-
-	qOpts, err := QEMU(o)
-	if err != nil {
-		t.Fatalf("Failed to create QEMU VM %s: %v", o.Name, err)
-	}
-
-	vm, err := qOpts.Start()
-	if err != nil {
-		t.Fatalf("Failed to start QEMU VM %s: %v", o.Name, err)
-	}
-
-	return vm, func() {
-		vm.Close()
-		if !o.NoKernelCoverage {
-			if err := saveCoverage(t, filepath.Join(o.TmpDir, "kernel_coverage.tar")); err != nil {
-				t.Logf("Error saving kernel coverage: %v", err)
-			}
-		}
-
-		t.Logf("QEMU command line to reproduce %s:\n%s", o.Name, vm.CmdlineQuoted())
-		if t.Failed() {
-			t.Log("Keeping temp dir: ", o.TmpDir)
-		} else if len(o.TmpDir) == 0 {
-			if err := os.RemoveAll(o.TmpDir); err != nil {
-				t.Logf("failed to remove temporary directory %s: %v", o.TmpDir, err)
-			}
-		}
-	}
-}
-
-// QEMU builds the u-root environment and prepares QEMU options given the test
-// options and environment variables.
-//
-// QEMU will augment o.BuildOpts and o.QEMUOpts with configuration that the
-// caller either requested (through the Options.Uinit field, for example) or
-// that the caller did not set.
-//
-// QEMU returns the QEMU launch options or an error.
-func QEMU(o *Options) (*qemu.Options, error) {
-	if len(o.Name) == 0 {
-		o.Name = callerName(2)
+	if o.SharedDir == "" {
+		o.SharedDir = t.TempDir()
 	}
 
 	// Set the initramfs.
-	if len(o.QEMUOpts.Initramfs) == 0 {
-		o.QEMUOpts.Initramfs = filepath.Join(o.TmpDir, "initramfs.cpio")
-		if err := ChooseTestInitramfs(o.DontSetEnv, o.BuildOpts, o.QEMUOpts.Initramfs); err != nil {
-			return nil, err
+	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {
+		o.VMOptions.QEMUOpts.Initramfs = filepath.Join(o.SharedDir, "initramfs.cpio")
+		if err := ChooseTestInitramfs(o.Logger, o.DontSetEnv, o.BuildOpts, o.VMOptions.QEMUOpts.Initramfs); err != nil {
+			t.Fatalf("Could not choose an initramfs for u-root-initramfs-based VM test: %v", err)
 		}
 	}
 
-	if len(o.QEMUOpts.Kernel) == 0 {
-		// Copy kernel to o.TmpDir for tests involving kexec.
-		kernel := filepath.Join(o.TmpDir, "kernel")
-		if err := cp.Copy(os.Getenv("UROOT_KERNEL"), kernel); err != nil {
-			return nil, err
-		}
-		o.QEMUOpts.Kernel = kernel
-	}
-
-	switch TestArch() {
-	case "amd64":
-		o.QEMUOpts.KernelArgs += " console=ttyS0 earlyprintk=ttyS0"
-	case "arm":
-		o.QEMUOpts.KernelArgs += " console=ttyAMA0"
-	}
-	o.QEMUOpts.KernelArgs += " uroot.vmtest"
-
-	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices, qemu.VirtioRandom{}, qemu.P9Directory{Dir: o.TmpDir, Arch: TestArch()})
-
-	if o.NoKernelCoverage {
-		o.QEMUOpts.KernelArgs += " UROOT_NO_KERNEL_COVERAGE=1"
-	}
-
-	return &o.QEMUOpts, nil
+	return StartVM(t, &o.VMOptions)
 }
 
-func last(s string) string {
-	l := strings.Split(s, ".")
-	return l[len(l)-1]
-}
+// Tests are run from u-root/integration/{gotests,generic-tests}/
+const coveragePath = "../coverage"
 
-func callerName(depth int) string {
-	// Use the test name as the serial log's file name.
-	pc, _, _, ok := runtime.Caller(depth)
-	if !ok {
-		panic("runtime caller failed")
-	}
-	f := runtime.FuncForPC(pc)
-	return last(f.Name())
-}
+// Keeps track of the number of instances per test so we do not overlap
+// coverage reports.
+var instance = map[string]int{}
 
 // TestArch returns the architecture under test. Pass this as GOARCH when
 // building Go programs to be run in the QEMU environment.
@@ -193,25 +118,7 @@ func TestArch() string {
 	return "amd64"
 }
 
-// SkipWithoutQEMU skips the test when the QEMU environment variables are not
-// set. This is already called by QEMUTest(), so use if some expensive
-// operations are performed before calling QEMUTest().
-func SkipWithoutQEMU(t *testing.T) {
-	if _, ok := os.LookupEnv("UROOT_QEMU"); !ok {
-		t.Skip("QEMU vmtest is skipped unless UROOT_QEMU is set")
-	}
-	if _, ok := os.LookupEnv("UROOT_KERNEL"); !ok {
-		t.Skip("QEMU vmtest is skipped unless UROOT_KERNEL is set")
-	}
-}
-
-func SkipIfNotInVM(t testing.TB) {
-	if !cmdline.ContainsFlag("uroot.vmtest") {
-		t.Skip("Skipping test -- must be run inside vmtest VM")
-	}
-}
-
-func saveCoverage(t *testing.T, path string) error {
+func saveCoverage(t testing.TB, path string) error {
 	// Coverage may not have been collected, for example if the kernel is
 	// not built with CONFIG_GCOV_KERNEL.
 	if fi, err := os.Stat(path); os.IsNotExist(err) || (err != nil && !fi.Mode().IsRegular()) {
@@ -235,14 +142,14 @@ func saveCoverage(t *testing.T, path string) error {
 // Default to the override initramfs if one is specified in the UROOT_INITRAMFS
 // environment variable. Else, build an initramfs with the given parameters.
 // If no uinit was provided, the generic one is used.
-func ChooseTestInitramfs(dontSetEnv bool, o uroot.Opts, outputFile string) error {
-	override := os.Getenv("UROOT_INITRAMFS")
+func ChooseTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) error {
+	override := os.Getenv("VMTEST_INITRAMFS")
 	if len(override) > 0 {
-		log.Printf("Overriding with initramfs %q from UROOT_INITRAMFS", override)
+		log.Printf("Overriding with initramfs %q from VMTEST_INITRAMFS", override)
 		return cp.Copy(override, outputFile)
 	}
 
-	_, err := CreateTestInitramfs(dontSetEnv, o, outputFile)
+	_, err := CreateTestInitramfs(logger, dontSetEnv, o, outputFile)
 	return err
 }
 
@@ -251,15 +158,13 @@ func ChooseTestInitramfs(dontSetEnv bool, o uroot.Opts, outputFile string) error
 // one will be created.
 // The output file name is returned. It is the caller's responsibility to remove
 // the initramfs file after use.
-func CreateTestInitramfs(dontSetEnv bool, o uroot.Opts, outputFile string) (string, error) {
+func CreateTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) (string, error) {
 	if !dontSetEnv {
 		env := golang.Default()
 		env.CgoEnabled = false
 		env.GOARCH = TestArch()
 		o.Env = env
 	}
-
-	logger := log.New(os.Stderr, "", 0)
 
 	// If build opts don't specify any commands, include all commands. Else,
 	// always add init and elvish.
