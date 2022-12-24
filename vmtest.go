@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
@@ -78,6 +79,9 @@ type UrootFSOptions struct {
 // If VMTEST_INITRAMFS is set, that initramfs overrides the options set in this
 // test. (This can be used to, for example, run the same test with an initramfs
 // built by bazel rules.)
+//
+// Automatically sets VMTEST_QEMU_ARCH based on the VMTEST_GOARCH (which is
+// runtime.GOARCH by default).
 func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
@@ -90,6 +94,8 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	if o.SharedDir == "" {
 		o.SharedDir = t.TempDir()
 	}
+
+	os.Setenv("VMTEST_QEMU_ARCH", qemu.GOARCHToQEMUArch[GoTestArch()])
 
 	// Set the initramfs.
 	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {
@@ -108,15 +114,6 @@ const coveragePath = "../coverage"
 // Keeps track of the number of instances per test so we do not overlap
 // coverage reports.
 var instance = map[string]int{}
-
-// TestArch returns the architecture under test. Pass this as GOARCH when
-// building Go programs to be run in the QEMU environment.
-func TestArch() string {
-	if env := os.Getenv("UROOT_TESTARCH"); env != "" {
-		return env
-	}
-	return "amd64"
-}
 
 func saveCoverage(t testing.TB, path string) error {
 	// Coverage may not have been collected, for example if the kernel is
@@ -153,6 +150,15 @@ func ChooseTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outp
 	return err
 }
 
+// GoTestArch returns the architecture under test. Pass this as GOARCH when
+// building Go programs to be run in the QEMU environment.
+func GoTestArch() string {
+	if env := os.Getenv("VMTEST_GOARCH"); env != "" {
+		return env
+	}
+	return runtime.GOARCH
+}
+
 // CreateTestInitramfs creates an initramfs with the given build options
 // and writes it to the given output file. If no output file is provided,
 // one will be created.
@@ -162,7 +168,7 @@ func CreateTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outp
 	if !dontSetEnv {
 		env := golang.Default()
 		env.CgoEnabled = false
-		env.GOARCH = TestArch()
+		env.GOARCH = GoTestArch()
 		o.Env = env
 	}
 

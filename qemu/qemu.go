@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,14 @@ type Options struct {
 	// If left unspecified, the VMTEST_QEMU env var will be used.
 	// If the env var is unspecified, "qemu" is the default.
 	QEMUPath string
+
+	// QEMUArch is the QEMU architecture used.
+	//
+	// Some device decisions are made based on the architecture.
+	// If left unspecified, VMTEST_QEMU_ARCH env var will be used.
+	// If the env var is unspecified, the architecture default will be the
+	// host arch.
+	QEMUArch string
 
 	// Path to the kernel to boot.
 	Kernel string
@@ -91,6 +100,28 @@ func (o *Options) Start() (*VM, error) {
 	}, nil
 }
 
+// Arch returns the presumed guest architecture.
+func (o *Options) Arch() (string, error) {
+	if len(o.QEMUArch) > 0 {
+		return o.QEMUArch, nil
+	}
+	if a := os.Getenv("VMTEST_QEMU_ARCH"); len(a) > 0 {
+		return a, nil
+	}
+	if a, ok := GOARCHToQEMUArch[runtime.GOARCH]; ok {
+		return a, nil
+	}
+	return "", fmt.Errorf("could not determine QEMU guest arch from VMTEST_QEMU_ARCH or GOARCH")
+}
+
+// GOARCHToQEMUArch maps GOARCH to QEMU arch values.
+var GOARCHToQEMUArch = map[string]string{
+	"386":   "i386",
+	"amd64": "x86_64",
+	"arm":   "arm",
+	"arm64": "aarch64",
+}
+
 // Cmdline returns the command line arguments used to start QEMU. These
 // arguments are derived from the given QEMU struct.
 func (o *Options) Cmdline() ([]string, error) {
@@ -104,6 +135,11 @@ func (o *Options) Cmdline() ([]string, error) {
 			env = "qemu" // default
 		}
 		args = append(args, strings.Fields(env)...)
+	}
+
+	arch, err := o.Arch()
+	if err != nil {
+		return nil, err
 	}
 
 	// Disable graphics because we are using serial.
@@ -137,7 +173,7 @@ func (o *Options) Cmdline() ([]string, error) {
 
 	for _, dev := range o.Devices {
 		if dev != nil {
-			if c := dev.Cmdline(); c != nil {
+			if c := dev.Cmdline(arch); c != nil {
 				args = append(args, c...)
 			}
 		}

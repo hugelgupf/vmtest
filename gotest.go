@@ -24,8 +24,8 @@ func GolangTest(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
 
 	// TODO: support arm
-	if TestArch() != "amd64" && TestArch() != "arm64" {
-		t.Skipf("test not supported on %s", TestArch())
+	if GoTestArch() != "amd64" && GoTestArch() != "arm64" {
+		t.Skipf("test not supported on %s", GoTestArch())
 	}
 
 	if o == nil {
@@ -43,7 +43,7 @@ func GolangTest(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	// Set up u-root build options.
 	env := golang.Default()
 	env.CgoEnabled = false
-	env.GOARCH = TestArch()
+	env.GOARCH = GoTestArch()
 	o.BuildOpts.Env = env
 
 	// Statically build tests and add them to the temporary directory.

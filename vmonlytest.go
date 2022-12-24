@@ -75,8 +75,12 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		o.QEMUOpts.Initramfs = initramfs
 	}
 
-	switch TestArch() {
-	case "amd64":
+	arch, err := o.QEMUOpts.Arch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch arch {
+	case "x86_64":
 		o.QEMUOpts.KernelArgs += " console=ttyS0 earlyprintk=ttyS0"
 	case "arm":
 		o.QEMUOpts.KernelArgs += " console=ttyAMA0"
@@ -85,7 +89,7 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 
 	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices,
 		qemu.VirtioRandom{},
-		qemu.P9Directory{Dir: o.SharedDir, Arch: TestArch()},
+		qemu.P9Directory{Dir: o.SharedDir},
 	)
 
 	vm, err := o.QEMUOpts.Start()

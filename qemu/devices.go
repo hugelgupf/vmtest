@@ -13,7 +13,8 @@ import (
 // Device is a QEMU device to expose to a VM.
 type Device interface {
 	// Cmdline returns arguments to append to the QEMU command line for this device.
-	Cmdline() []string
+	Cmdline(arch string) []string
+
 	// KArgs returns arguments that must be passed to the kernel for this device, or nil.
 	KArgs() []string
 }
@@ -90,7 +91,7 @@ type networkImpl struct {
 	args []string
 }
 
-func (n networkImpl) Cmdline() []string {
+func (n networkImpl) Cmdline(string) []string {
 	return n.args
 }
 
@@ -103,7 +104,7 @@ type ReadOnlyDirectory struct {
 	Dir string
 }
 
-func (rod ReadOnlyDirectory) Cmdline() []string {
+func (rod ReadOnlyDirectory) Cmdline(string) []string {
 	if len(rod.Dir) == 0 {
 		return nil
 	}
@@ -123,7 +124,7 @@ type IDEBlockDevice struct {
 	File string
 }
 
-func (ibd IDEBlockDevice) Cmdline() []string {
+func (ibd IDEBlockDevice) Cmdline(string) []string {
 	if len(ibd.File) == 0 {
 		return nil
 	}
@@ -166,13 +167,9 @@ type P9Directory struct {
 	// Because the tag must be unique for each dir, if multiple non-boot
 	// P9Directory's are used, tag may be omitted for no more than one.
 	Tag string
-
-	// Arch is the architecture under test. This is used to determine the
-	// QEMU command line args.
-	Arch string
 }
 
-func (p P9Directory) Cmdline() []string {
+func (p P9Directory) Cmdline(arch string) []string {
 	if len(p.Dir) == 0 {
 		return nil
 	}
@@ -194,7 +191,7 @@ func (p P9Directory) Cmdline() []string {
 
 	// Expose the temp directory to QEMU
 	var deviceArgs string
-	switch p.Arch {
+	switch arch {
 	case "arm":
 		deviceArgs = fmt.Sprintf("virtio-9p-device,fsdev=%s,mount_tag=%s", id, tag)
 	default:
@@ -232,7 +229,7 @@ func (p P9Directory) KArgs() []string {
 // QEMU VM.
 type VirtioRandom struct{}
 
-func (VirtioRandom) Cmdline() []string {
+func (VirtioRandom) Cmdline(string) []string {
 	return []string{"-device", "virtio-rng-pci"}
 }
 
@@ -242,7 +239,7 @@ func (VirtioRandom) KArgs() []string { return nil }
 // the QEMU command line.
 type ArbitraryArgs []string
 
-func (aa ArbitraryArgs) Cmdline() []string {
+func (aa ArbitraryArgs) Cmdline(string) []string {
 	return aa
 }
 
