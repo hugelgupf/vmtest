@@ -1,3 +1,5 @@
+//go:build tools
+
 package vmtest
 
 // List u-root commands that need to be in go.mod & go.sum to be buildable as
