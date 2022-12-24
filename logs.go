@@ -29,7 +29,7 @@ func (j jsonStripper) OneLine(p []byte) {
 	j.LineWriter.OneLine(p)
 }
 
-func JSONLessTestLineWriter(tb testing.TB, prefix string) io.WriteCloser {
+func jsonLessTestLineWriter(tb testing.TB, prefix string) io.WriteCloser {
 	return uio.FullLineWriter(jsonStripper{&testLineWriter{tb: tb, prefix: prefix}})
 }
 

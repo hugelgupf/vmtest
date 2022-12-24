@@ -46,7 +46,7 @@ func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 	o.BuildOpts.AddBusyBoxCommands("github.com/hugelgupf/vmtest/vminit/shelluinit")
 	o.BuildOpts.UinitCmd = "shelluinit"
 
-	vm := StartVMTestVM(t, o)
+	vm := startVMTestVM(t, o)
 
 	if err := vm.Expect("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)

@@ -140,7 +140,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		// Collect JSON test events in tc.
 		json2test.EventParser(tc),
 		// Write non-JSON output to log.
-		JSONLessTestLineWriter(t, "serial"),
+		jsonLessTestLineWriter(t, "serial"),
 	}
 	if o.QEMUOpts.SerialOutput != nil {
 		serial = append(serial, o.QEMUOpts.SerialOutput)
@@ -151,7 +151,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	}
 
 	// Create the initramfs and start the VM.
-	vm := StartVMTestVM(t, o)
+	vm := startVMTestVM(t, o)
 
 	if err := vm.Expect("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)

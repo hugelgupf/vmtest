@@ -21,14 +21,14 @@ import (
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 )
 
-// StartVMTestVM starts u-root-based vmtest VMs that conform to vmtest's
+// startVMTestVM starts u-root-based vmtest VMs that conform to vmtest's
 // features and use vmtest's vminit & test framework.
 //
 // They support:
 // - kernel coverage,
 // - TODO: tests passed marker.
 // - TODO: checking exit status of tests in VM.
-func StartVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
+func startVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	// Delete any previous coverage data.
 	if _, ok := instance[t.Name()]; !ok {
 		testCoveragePath := filepath.Join(coveragePath, t.Name())
