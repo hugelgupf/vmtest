@@ -6,6 +6,7 @@ package vmtest
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,15 +49,27 @@ type VMOptions struct {
 func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
+	// This is used by the console output logger in every t.Logf line to
+	// prefix console statements.
+	var consoleOutputName string
 	if len(o.Name) == 0 {
 		o.Name = t.Name()
+		// Unnamed VMs likely means there's only 1 VM in the test. No
+		// need to take up screen width with the test name.
+		consoleOutputName = "serial"
+	} else {
+		// If the caller named this test, it's likely they are starting
+		// more than 1 VM in the same test. Distinguish serial output
+		// by putting the name of the VM in every console log line.
+		consoleOutputName = fmt.Sprintf("%s serial", o.Name)
 	}
+
 	if o.SharedDir == "" {
 		o.SharedDir = t.TempDir()
 	}
 
 	if o.QEMUOpts.SerialOutput == nil {
-		o.QEMUOpts.SerialOutput = TestLineWriter(t, "serial")
+		o.QEMUOpts.SerialOutput = TestLineWriter(t, consoleOutputName)
 	}
 	if len(o.QEMUOpts.Kernel) == 0 {
 		// Copy kernel to o.SharedDir for tests involving kexec.
@@ -75,6 +88,7 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		o.QEMUOpts.Initramfs = initramfs
 	}
 
+	// Make sure console gets to the logs.
 	arch, err := o.QEMUOpts.Arch()
 	if err != nil {
 		t.Fatal(err)
@@ -85,6 +99,9 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	case "arm":
 		o.QEMUOpts.KernelArgs += " console=ttyAMA0"
 	}
+
+	// Tests use this cmdline arg to identify they are running inside a
+	// vmtest using SkipIfNotInVM
 	o.QEMUOpts.KernelArgs += " uroot.vmtest"
 
 	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices,
@@ -113,15 +130,11 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	return vm
 }
 
-// SkipWithoutQEMU skips the test when the QEMU environment variables are not
-// set. This is already called by QEMUTest(), so use if some expensive
-// operations are performed before calling QEMUTest().
+// SkipWithoutQEMU skips the test when the QEMU environment variable is not
+// set.
 func SkipWithoutQEMU(t testing.TB) {
 	if _, ok := os.LookupEnv("VMTEST_QEMU"); !ok {
 		t.Skip("QEMU vmtest is skipped unless VMTEST_QEMU is set")
-	}
-	if _, ok := os.LookupEnv("VMTEST_KERNEL"); !ok {
-		t.Skip("QEMU vmtest is skipped unless VMTEST_KERNEL is set")
 	}
 }
 

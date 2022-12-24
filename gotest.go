@@ -19,7 +19,15 @@ import (
 	"github.com/u-root/u-root/pkg/uroot"
 )
 
-// GolangTest compiles the unit tests found in pkgs and runs them in a QEMU VM.
+// GolangTest compiles the tests found in pkgs and runs them in a QEMU VM
+// configured in options `o`. It collects the test results and provides a
+// pass/fail result of each individual test.
+//
+// GolangTest runs tests and benchmarks, but not fuzz tests. (TODO:
+// Configuration for this.)
+//
+// TODO: test timeout.
+// TODO: check each test's exit status.
 func GolangTest(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
 
