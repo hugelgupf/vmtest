@@ -25,9 +25,10 @@ import (
 // features and use vmtest's vminit & test framework.
 //
 // They support:
-// - kernel coverage,
-// - TODO: tests passed marker.
-// - TODO: checking exit status of tests in VM.
+//
+//   - kernel coverage,
+//   - TODO: tests passed marker.
+//   - TODO: checking exit status of tests in VM.
 func startVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	// Delete any previous coverage data.
 	if _, ok := instance[t.Name()]; !ok {

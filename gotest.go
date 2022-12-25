@@ -38,9 +38,9 @@ import (
 // Coverage from the Go tests is collected if a coverage file name is specified
 // via the UROOT_QEMU_COVERPROFILE env var.
 //
-// TODO: specify test, bench, fuzz filter. Flags for fuzzing.
-// TODO: test timeout.
-// TODO: check each test's exit status.
+//   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
+//   - TODO: specify test timeout -- individual + total.
+//   - TODO: check each test's exit status.
 func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
 

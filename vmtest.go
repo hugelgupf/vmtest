@@ -46,6 +46,8 @@ type VMOptions struct {
 //
 // StartVM uses a caller-supplied kernel and initramfs, or fills them in from
 // VMTEST_KERNEL and VMTEST_INITRAMFS environment variables.
+//
+//   - TODO: overhaul timouts.
 func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
