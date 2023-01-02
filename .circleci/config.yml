@@ -1,0 +1,46 @@
+version: 2
+
+templates:
+  golang-template: &golang-template
+    docker:
+      - image: cimg/go:1.19
+    working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
+
+  integration-amd64-template: &integration-amd64-template
+    docker:
+      - image: uroottest/test-image-amd64:v5.2.0
+    working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
+    environment:
+      - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
+      - UROOT_QEMU_TIMEOUT_X: 7
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - build
+
+jobs:
+  build:
+    <<: *golang-template
+    steps:
+      - checkout
+      - run: go env
+      - run: go vet ./...
+      - run:
+          name: go mod tidy
+          command: |
+            go mod tidy
+            go mod verify
+            git status
+            if [[ -n "$(git status --porcelain .)" ]]; then
+              echo 'go.mod/go.sum is out-of-date: run `go mod tidy` in the right module directories (see git status) and then check in the changes'
+              echo 'If `go mod tidy` results in no changes, make sure you are using the latest relase of Go'
+              git status --porcelain .
+              exit 1
+            fi
+      - run:
+          name: gofmt
+          command: test -z "$(gofmt -s -l $(find -name '*.go'))"
+      - run: go build ./...
+
