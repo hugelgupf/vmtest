@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"testing"
@@ -113,9 +112,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 			args = append(args, "-covermode=atomic")
 		}
 
-		// TODO: replace this with usage of golang package.
-		cmd := exec.Command("go", args...)
-		cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+		cmd := env.GoCmd(args...)
 		if stderr, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("could not build %s: %v\n%s", pkg, err, string(stderr))
 		}
