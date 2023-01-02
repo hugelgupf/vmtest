@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/cp"
-	"github.com/u-root/u-root/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -58,13 +58,6 @@ type UrootFSOptions struct {
 	// Fields that are not set are populated as possible.
 	BuildOpts uroot.Opts
 
-	// DontSetEnv doesn't set the BuildOpts.Env and uses the user-supplied one.
-	//
-	// HACK HACK HACK
-	//
-	// TODO: make uroot.Opts.Env a pointer?
-	DontSetEnv bool
-
 	// Logger logs build statements.
 	//
 	// If unset, an implementation that logs to t.Logf is used.
@@ -101,7 +94,7 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	// Set the initramfs.
 	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {
 		o.VMOptions.QEMUOpts.Initramfs = filepath.Join(o.SharedDir, "initramfs.cpio")
-		if err := chooseTestInitramfs(o.Logger, o.DontSetEnv, o.BuildOpts, o.VMOptions.QEMUOpts.Initramfs); err != nil {
+		if err := chooseTestInitramfs(o.Logger, o.BuildOpts, o.VMOptions.QEMUOpts.Initramfs); err != nil {
 			t.Fatalf("Could not choose an initramfs for u-root-initramfs-based VM test: %v", err)
 		}
 	}
@@ -140,14 +133,14 @@ func saveCoverage(t testing.TB, path string) error {
 // Default to the override initramfs if one is specified in the UROOT_INITRAMFS
 // environment variable. Else, build an initramfs with the given parameters.
 // If no uinit was provided, the generic one is used.
-func chooseTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) error {
+func chooseTestInitramfs(logger ulog.Logger, o uroot.Opts, outputFile string) error {
 	override := os.Getenv("VMTEST_INITRAMFS")
 	if len(override) > 0 {
 		log.Printf("Overriding with initramfs %q from VMTEST_INITRAMFS", override)
 		return cp.Copy(override, outputFile)
 	}
 
-	_, err := createTestInitramfs(logger, dontSetEnv, o, outputFile)
+	_, err := createTestInitramfs(logger, o, outputFile)
 	return err
 }
 
@@ -165,12 +158,12 @@ func GuestGOARCH() string {
 // one will be created.
 // The output file name is returned. It is the caller's responsibility to remove
 // the initramfs file after use.
-func createTestInitramfs(logger ulog.Logger, dontSetEnv bool, o uroot.Opts, outputFile string) (string, error) {
-	if !dontSetEnv {
+func createTestInitramfs(logger ulog.Logger, o uroot.Opts, outputFile string) (string, error) {
+	if o.Env == nil {
 		env := golang.Default()
 		env.CgoEnabled = false
 		env.GOARCH = GuestGOARCH()
-		o.Env = env
+		o.Env = &env
 	}
 
 	// If build opts don't specify any commands, include all commands. Else,

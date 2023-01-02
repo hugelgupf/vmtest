@@ -14,10 +14,21 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
-	"github.com/u-root/u-root/pkg/golang"
+	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uio"
 	"github.com/u-root/u-root/pkg/uroot"
+	"golang.org/x/tools/go/packages"
 )
+
+func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages.Package, error) {
+	cfg := &packages.Config{
+		Mode:  packages.NeedName | packages.NeedFiles,
+		Env:   append(os.Environ(), env.Env()...),
+		Dir:   dir,
+		Tests: true,
+	}
+	return packages.Load(cfg, patterns...)
+}
 
 // RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
 // configured in options `o`. It collects the test results and provides a
@@ -65,7 +76,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	env := golang.Default()
 	env.CgoEnabled = false
 	env.GOARCH = GuestGOARCH()
-	o.BuildOpts.Env = env
+	o.BuildOpts.Env = &env
 
 	// Statically build tests and add them to the temporary directory.
 	var tests []string
@@ -115,13 +126,27 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		if _, err := os.Stat(testFile); !os.IsNotExist(err) {
 			tests = append(tests, pkg)
 
-			p, err := o.BuildOpts.Env.Package(pkg)
+			pkgs, err := lookupPkgs(*o.BuildOpts.Env, "", pkg)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Failed to look up package %q: %v", pkg, err)
 			}
+
+			// One directory = one package in standard Go, so
+			// finding the first file's parent directory should
+			// find us the package directory.
+			var dir string
+			for _, p := range pkgs {
+				if len(p.GoFiles) > 0 {
+					dir = filepath.Dir(p.GoFiles[0])
+				}
+			}
+			if dir == "" {
+				t.Fatalf("Could not find package directory for %q", pkg)
+			}
+
 			// Optimistically copy any files in the pkg's
 			// directory, in case e.g. a testdata dir is there.
-			if err := copyRelativeFiles(p.Dir, filepath.Join(testDir, pkg)); err != nil {
+			if err := copyRelativeFiles(dir, filepath.Join(testDir, pkg)); err != nil {
 				t.Fatal(err)
 			}
 		}
