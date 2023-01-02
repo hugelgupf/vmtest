@@ -28,6 +28,17 @@ templates:
       - VMTEST_QEMU: "/home/circleci/qemu-system-aarch64 -machine virt -cpu max -m 1G"
       - VMTEST_GOARCH: arm64
 
+  integration-arm-template: &integration-arm-template
+    docker:
+      - image: uroottest/test-image-arm:v5.1.0
+    working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
+    environment:
+      - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
+      - UROOT_QEMU_TIMEOUT_X: 7
+      - VMTEST_KERNEL: /home/circleci/zImage
+      - VMTEST_QEMU: "/home/circleci/qemu-system-arm -M virt -L /home/circleci/pc-bios"
+      - VMTEST_GOARCH: arm
+
   test-template: &test-template
     steps:
       - checkout
@@ -42,6 +53,9 @@ workflows:
           requires:
             - build
       - test-amd64:
+          requires:
+            - build
+      - test-arm:
           requires:
             - build
 
@@ -74,3 +88,6 @@ jobs:
 
   test-arm64:
     <<: [*test-template, *integration-arm64-template]
+
+  test-arm:
+    <<: [*test-template, *integration-arm-template]
