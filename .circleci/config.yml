@@ -13,12 +13,37 @@ templates:
     environment:
       - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
       - UROOT_QEMU_TIMEOUT_X: 7
+      - VMTEST_KERNEL: /home/circleci/bzImage
+      - VMTEST_QEMU: "/home/circleci/qemu-system-x86_64 -L /home/circleci/pc-bios -m 1G"
+      - VMTEST_GOARCH: amd64
+
+  integration-arm64-template: &integration-arm64-template
+    docker:
+      - image: uroottest/test-image-arm64:v5.2.0
+    working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
+    environment:
+      - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
+      - UROOT_QEMU_TIMEOUT_X: 7
+      - VMTEST_KERNEL: /home/circleci/Image
+      - VMTEST_QEMU: "/home/circleci/qemu-system-aarch64 -machine virt -cpu max -m 1G"
+      - VMTEST_GOARCH: arm64
+
+  test-template: &test-template
+    steps:
+      - checkout
+      - run: go test -v -p=1 ./...
 
 workflows:
   version: 2
   test:
     jobs:
       - build
+      - test-arm64:
+          requires:
+            - build
+      - test-amd64:
+          requires:
+            - build
 
 jobs:
   build:
@@ -44,3 +69,8 @@ jobs:
           command: test -z "$(gofmt -s -l $(find -name '*.go'))"
       - run: go build ./...
 
+  test-amd64:
+    <<: [*test-template, *integration-amd64-template]
+
+  test-arm64:
+    <<: [*test-template, *integration-arm64-template]
