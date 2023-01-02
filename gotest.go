@@ -54,11 +54,6 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
 
-	// TODO: support arm
-	if GuestGOARCH() != "amd64" && GuestGOARCH() != "arm64" {
-		t.Skipf("test not supported on %s", GuestGOARCH())
-	}
-
 	if o == nil {
 		o = &UrootFSOptions{}
 	}
