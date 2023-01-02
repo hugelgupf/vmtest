@@ -1,11 +1,13 @@
 module github.com/hugelgupf/vmtest
 
-go 1.20
+go 1.18
 
 require (
 	github.com/google/goexpect v0.0.0-20210430020637-ab937bf7fd6f
+	github.com/u-root/gobusybox/src v0.0.0-20221229083637-46b2883a7f90
 	github.com/u-root/u-root v0.9.1-0.20230102060129-ff9c8884b4a6
 	golang.org/x/sys v0.3.0
+	golang.org/x/tools v0.4.0
 )
 
 require (
@@ -22,7 +24,6 @@ require (
 	github.com/mdlayher/raw v0.0.0-20191009151244-50f2db8cc065 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/u-root/gobusybox/src v0.0.0-20221229083637-46b2883a7f90 // indirect
 	github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4 // indirect
 	github.com/ulikunitz/xz v0.5.8 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
@@ -30,7 +31,6 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/net v0.3.0 // indirect
-	golang.org/x/tools v0.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55 // indirect
 	google.golang.org/grpc v1.31.0 // indirect
 	src.elv.sh v0.16.0-rc1.0.20220116211855-fda62502ad7f // indirect
