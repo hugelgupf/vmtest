@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/u-root/u-root/pkg/cmdline"
 	"github.com/u-root/u-root/pkg/cp"
 )
 
@@ -137,15 +136,5 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 func SkipWithoutQEMU(t testing.TB) {
 	if _, ok := os.LookupEnv("VMTEST_QEMU"); !ok {
 		t.Skip("QEMU vmtest is skipped unless VMTEST_QEMU is set")
-	}
-}
-
-// SkipIfNotInVM skips the test if it is not running in a vmtest-started VM.
-//
-// The presence of "uroot.vmtest" on the kernel commandline is used to
-// determine this.
-func SkipIfNotInVM(t testing.TB) {
-	if !cmdline.ContainsFlag("uroot.vmtest") {
-		t.Skip("Skipping test -- must be run inside vmtest VM")
 	}
 }
