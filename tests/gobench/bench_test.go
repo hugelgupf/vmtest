@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/guest"
 )
 
 func TestRunBenchmarkInVM(t *testing.T) {
@@ -18,7 +19,7 @@ func fib(n int) int {
 }
 
 func BenchmarkFib10(b *testing.B) {
-	vmtest.SkipIfNotInVM(b)
+	guest.SkipIfNotInVM(b)
 
 	for n := 0; n < b.N; n++ {
 		fib(10)

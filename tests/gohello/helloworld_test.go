@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/guest"
 )
 
 func TestStartVM(t *testing.T) {
@@ -11,7 +12,7 @@ func TestStartVM(t *testing.T) {
 }
 
 func TestHelloWorld(t *testing.T) {
-	vmtest.SkipIfNotInVM(t)
+	guest.SkipIfNotInVM(t)
 
 	t.Logf("Hello world")
 }
