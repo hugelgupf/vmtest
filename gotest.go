@@ -5,17 +5,22 @@
 package vmtest
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
+	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uio"
 	"github.com/u-root/u-root/pkg/uroot"
+	"golang.org/x/sys/unix"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -27,6 +32,27 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 		Tests: true,
 	}
 	return packages.Load(cfg, patterns...)
+}
+
+func ProcessJSONFromFIFO[T any](fifo string, callback func(T)) error {
+	f, err := os.Open(fifo)
+	if err != nil {
+		return fmt.Errorf("failed to open fifo: %w", err)
+	}
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		var e T
+		if err := json.Unmarshal(line, &e); err != nil {
+			return fmt.Errorf("JSON error: %w", err)
+		}
+		callback(e)
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("scanner error: %w", err)
+	}
+	return nil
 }
 
 // RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
@@ -154,8 +180,6 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 
 	tc := json2test.NewTestCollector()
 	serial := []io.Writer{
-		// Collect JSON test events in tc.
-		json2test.EventParser(tc),
 		// Write non-JSON output to log.
 		jsonLessTestLineWriter(t, "serial"),
 	}
@@ -167,16 +191,33 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		o.QEMUOpts.KernelArgs += " uroot.uinitargs=-coverprofile=/testdata/coverage.profile"
 	}
 
+	fifo := filepath.Join(o.SharedDir, "go-test-results")
+	if err := unix.Mkfifo(fifo, 0755); err != nil {
+		t.Fatalf("Could not create named pipe: %v", err)
+	}
+	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices,
+		qemu.VirtioSerial{NamedPipePath: fifo, Name: "go-test-results"},
+	)
+
 	// Create the initramfs and start the VM.
 	vm := startVMTestVM(t, o)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func(tt testing.TB) {
+		defer wg.Done()
+		if err := ProcessJSONFromFIFO[json2test.TestEvent](fifo, tc.Handle); err != nil {
+			tt.Errorf("Failed to process event channel: %v", err)
+		}
+	}(t)
 
 	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
 	}
-
 	if err := vm.Wait(); err != nil {
 		t.Errorf("VM exited with %v", err)
 	}
+	wg.Wait()
 
 	// Collect Go coverage.
 	if len(vmCoverProfile) > 0 {

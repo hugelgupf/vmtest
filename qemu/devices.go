@@ -195,6 +195,8 @@ func (s VirtioSerial) Cmdline(arch string, id *IDAllocator) []string {
 	}
 }
 
+func (VirtioSerial) KArgs() []string { return nil }
+
 // P9Directory is a Device that exposes a directory as a Plan9 (9p)
 // read-write filesystem in the VM.
 type P9Directory struct {
