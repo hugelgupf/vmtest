@@ -170,8 +170,12 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	// Create the initramfs and start the VM.
 	vm := startVMTestVM(t, o)
 
-	if err := vm.Expect("TESTS PASSED MARKER"); err != nil {
+	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Errorf("VM exited with %v", err)
 	}
 
 	// Collect Go coverage.

@@ -116,8 +116,6 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	}
 
 	t.Cleanup(func() {
-		vm.Close()
-
 		t.Logf("QEMU command line to reproduce %s:\n%s", o.Name, vm.CmdlineQuoted())
 		if t.Failed() {
 			t.Log("Keeping temp dir: ", o.SharedDir)

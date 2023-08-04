@@ -18,13 +18,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
-	expect "github.com/google/goexpect"
+	"github.com/Netflix/go-expect"
 )
 
 // DefaultTimeout for `Expect` and `ExpectRE` functions.
@@ -85,18 +85,23 @@ func (o *Options) Start() (*VM, error) {
 		return nil, err
 	}
 
-	gExpect, ch, err := expect.SpawnWithArgs(cmdline, -1,
-		expect.Tee(o.SerialOutput),
-		expect.PartialMatch(true),
-		expect.CheckDuration(2*time.Millisecond))
+	c, err := expect.NewConsole(expect.WithStdout(o.SerialOutput))
 	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(cmdline[0], cmdline[1:]...)
+	cmd.Stdin = c.Tty()
+	cmd.Stdout = c.Tty()
+	cmd.Stderr = c.Tty()
+	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	return &VM{
 		Options: o,
-		errCh:   ch,
+		Console: c,
+		cmd:     cmd,
 		cmdline: cmdline,
-		gExpect: gExpect,
 	}, nil
 }
 
@@ -185,19 +190,20 @@ func (o *Options) Cmdline() ([]string, error) {
 type VM struct {
 	Options *Options
 	cmdline []string
-	errCh   <-chan error
-	gExpect *expect.GExpect
-}
-
-// Wait waits for the VM to exit.
-func (v *VM) Wait() error {
-	return <-v.errCh
+	cmd     *exec.Cmd
+	Console *expect.Console
 }
 
 // Cmdline is the command-line the VM was started with.
 func (v *VM) Cmdline() []string {
 	// Maybe return a copy?
 	return v.cmdline
+}
+
+// Wait waits for the VM to exit.
+func (v *VM) Wait() error {
+	defer v.Console.Close()
+	return v.cmd.Wait()
 }
 
 // CmdlineQuoted quotes any of QEMU's command line arguments containing a space
@@ -212,59 +218,4 @@ func (v *VM) CmdlineQuoted() string {
 		}
 	}
 	return strings.Join(args, " ")
-}
-
-// Close stops QEMU.
-func (v *VM) Close() {
-	v.gExpect.Close()
-	v.gExpect = nil
-	// Ensure the logs are closed by waiting the complete end
-	<-v.errCh
-}
-
-// Send sends a string to QEMU's serial.
-func (v *VM) Send(in string) {
-	v.gExpect.Send(in)
-}
-
-func (v *VM) TimeoutOr() time.Duration {
-	if v.Options.Timeout == 0 {
-		return DefaultTimeout
-	}
-	return v.Options.Timeout
-}
-
-// Expect returns an error if the given string is not found in vEMU's serial
-// output within `DefaultTimeout`.
-func (v *VM) Expect(search string) error {
-	return v.ExpectTimeout(search, v.TimeoutOr())
-}
-
-// ExpectTimeout returns an error if the given string is not found in vEMU's serial
-// output within the given timeout.
-func (v *VM) ExpectTimeout(search string, timeout time.Duration) error {
-	_, err := v.ExpectRETimeout(regexp.MustCompile(regexp.QuoteMeta(search)), timeout)
-	return err
-}
-
-// ExpectRE returns an error if the given regular expression is not found in
-// vEMU's serial output within `DefaultTimeout`. The matched string is
-// returned.
-func (v *VM) ExpectRE(pattern *regexp.Regexp) (string, error) {
-	return v.ExpectRETimeout(pattern, v.TimeoutOr())
-}
-
-// ExpectRETimeout returns an error if the given regular expression is not
-// found in vEMU's serial output within the given timeout. The matched string
-// is returned.
-func (v *VM) ExpectRETimeout(pattern *regexp.Regexp, timeout time.Duration) (string, error) {
-	scaled := time.Duration(float64(timeout) * TimeoutMultiplier)
-	str, _, err := v.gExpect.Expect(pattern, scaled)
-	return str, err
-}
-
-// ExpectBatch matches many regular expressions.
-func (v *VM) ExpectBatch(batch []expect.Batcher, timeout time.Duration) ([]expect.BatchRes, error) {
-	scaled := time.Duration(float64(timeout) * TimeoutMultiplier)
-	return v.gExpect.ExpectBatch(batch, scaled)
 }
