@@ -176,9 +176,10 @@ func (o *Options) Cmdline() ([]string, error) {
 		args = append(args, "-initrd", o.Initramfs)
 	}
 
+	ida := NewIDAllocator()
 	for _, dev := range o.Devices {
 		if dev != nil {
-			if c := dev.Cmdline(arch); c != nil {
+			if c := dev.Cmdline(arch, ida); c != nil {
 				args = append(args, c...)
 			}
 		}

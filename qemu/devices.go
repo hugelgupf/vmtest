@@ -7,13 +7,35 @@ package qemu
 import (
 	"fmt"
 	"net"
+	"strings"
 	"sync/atomic"
 )
+
+// IDAllocator is used to ensure no overlapping QEMU option IDs.
+type IDAllocator struct {
+	// maps a prefix to the maximum used suffix number.
+	idx map[string]uint32
+}
+
+// NewIDAllocator returns a new ID allocator for QEMU option IDs.
+func NewIDAllocator() *IDAllocator {
+	return &IDAllocator{
+		idx: make(map[string]uint32),
+	}
+}
+
+// ID returns the next available ID for the given prefix.
+func (a *IDAllocator) ID(prefix string) string {
+	prefix = strings.TrimRight(prefix, "0123456789")
+	idx := a.idx[prefix]
+	a.idx[prefix]++
+	return fmt.Sprintf("%s%d", prefix, idx)
+}
 
 // Device is a QEMU device to expose to a VM.
 type Device interface {
 	// Cmdline returns arguments to append to the QEMU command line for this device.
-	Cmdline(arch string) []string
+	Cmdline(arch string, id *IDAllocator) []string
 
 	// KArgs returns arguments that must be passed to the kernel for this device, or nil.
 	KArgs() []string
@@ -42,15 +64,14 @@ func NewNetwork() *Network {
 
 // NetworkOpt returns additional QEMU command-line parameters based on the net
 // device ID.
-type NetworkOpt func(netdev string) []string
+type NetworkOpt func(netdev string, id *IDAllocator) []string
 
 // WithPCAP captures network traffic and saves it to outputFile.
 func WithPCAP(outputFile string) NetworkOpt {
-	return func(netdev string) []string {
+	return func(netdev string, id *IDAllocator) []string {
 		return []string{
 			"-object",
-			// TODO(chrisko): generate an ID instead of 'f1'.
-			fmt.Sprintf("filter-dump,id=f1,netdev=%s,file=%s", netdev, outputFile),
+			fmt.Sprintf("filter-dump,id=%s,netdev=%s,file=%s", id.ID("filter"), netdev, outputFile),
 		}
 	}
 }
@@ -68,31 +89,39 @@ func (n *Network) NewVM(nopts ...NetworkOpt) Device {
 	//
 	// This is from the range of locally administered address ranges.
 	mac := net.HardwareAddr{0x0e, 0x00, 0x00, 0x00, 0x00, byte(num)}
-	devID := fmt.Sprintf("vm%d", num)
+	return networkImpl{
+		port:    n.port,
+		nopts:   nopts,
+		mac:     mac,
+		connect: num != 0,
+	}
+}
 
-	args := []string{"-device", fmt.Sprintf("e1000,netdev=%s,mac=%s", devID, mac)}
+type networkImpl struct {
+	port    uint16
+	nopts   []NetworkOpt
+	mac     net.HardwareAddr
+	connect bool
+}
+
+func (n networkImpl) Cmdline(arch string, id *IDAllocator) []string {
+	devID := id.ID("vm")
+
+	args := []string{"-device", fmt.Sprintf("e1000,netdev=%s,mac=%s", devID, n.mac)}
 	// Note: QEMU in CircleCI seems to in solve cases fail when using just ':1234' format.
 	// It fails with "address resolution failed for :1234: Name or service not known"
 	// hinting that this is somehow related to DNS resolution. To work around this,
 	// we explicitly bind to 127.0.0.1 (IPv6 [::1] is not parsed correctly by QEMU).
-	if num != 0 {
+	if n.connect {
 		args = append(args, "-netdev", fmt.Sprintf("socket,id=%s,connect=127.0.0.1:%d", devID, n.port))
 	} else {
 		args = append(args, "-netdev", fmt.Sprintf("socket,id=%s,listen=127.0.0.1:%d", devID, n.port))
 	}
 
-	for _, opt := range nopts {
-		args = append(args, opt(devID)...)
+	for _, opt := range n.nopts {
+		args = append(args, opt(devID, id)...)
 	}
-	return networkImpl{args}
-}
-
-type networkImpl struct {
-	args []string
-}
-
-func (n networkImpl) Cmdline(string) []string {
-	return n.args
+	return args
 }
 
 func (n networkImpl) KArgs() []string { return nil }
@@ -104,16 +133,19 @@ type ReadOnlyDirectory struct {
 	Dir string
 }
 
-func (rod ReadOnlyDirectory) Cmdline(string) []string {
+func (rod ReadOnlyDirectory) Cmdline(arch string, id *IDAllocator) []string {
 	if len(rod.Dir) == 0 {
 		return nil
 	}
 
+	drive := id.ID("drive")
+	ahci := id.ID("ahci")
+
 	// Expose the temp directory to QEMU as /dev/sda1
 	return []string{
-		"-drive", fmt.Sprintf("file=fat:rw:%s,if=none,id=tmpdir", rod.Dir),
-		"-device", "ich9-ahci,id=ahci",
-		"-device", "ide-hd,drive=tmpdir,bus=ahci.0",
+		"-drive", fmt.Sprintf("file=fat:rw:%s,if=none,id=%s", rod.Dir, drive),
+		"-device", fmt.Sprintf("ich9-ahci,id=%s", ahci),
+		"-device", fmt.Sprintf("ide-hd,drive=%s,bus=%s.0", drive, ahci),
 	}
 }
 
@@ -124,21 +156,18 @@ type IDEBlockDevice struct {
 	File string
 }
 
-func (ibd IDEBlockDevice) Cmdline(string) []string {
+func (ibd IDEBlockDevice) Cmdline(arch string, id *IDAllocator) []string {
 	if len(ibd.File) == 0 {
 		return nil
 	}
 
-	// There's a better way to do this. I don't know what it is. Some day
-	// I'll learn QEMU's crazy command line.
-	//
-	// I wish someone would make a proto representation of the
-	// command-line. Would be so much more understandable how device
-	// backends and frontends relate to each other.
+	drive := id.ID("drive")
+	ahci := id.ID("ahci")
+
 	return []string{
-		"-device", "ich9-ahci,id=ahci",
-		"-device", "ide-hd,drive=disk,bus=ahci.0",
-		"-drive", fmt.Sprintf("file=%s,if=none,id=disk", ibd.File),
+		"-drive", fmt.Sprintf("file=%s,if=none,id=%s", ibd.File, drive),
+		"-device", fmt.Sprintf("ich9-ahci,id=%s", ahci),
+		"-device", fmt.Sprintf("ide-hd,drive=%s,bus=%s.0", drive, ahci),
 	}
 }
 
@@ -169,7 +198,7 @@ type P9Directory struct {
 	Tag string
 }
 
-func (p P9Directory) Cmdline(arch string) []string {
+func (p P9Directory) Cmdline(arch string, ida *IDAllocator) []string {
 	if len(p.Dir) == 0 {
 		return nil
 	}
@@ -229,7 +258,7 @@ func (p P9Directory) KArgs() []string {
 // QEMU VM.
 type VirtioRandom struct{}
 
-func (VirtioRandom) Cmdline(string) []string {
+func (VirtioRandom) Cmdline(string, *IDAllocator) []string {
 	return []string{"-device", "virtio-rng-pci"}
 }
 
@@ -239,7 +268,7 @@ func (VirtioRandom) KArgs() []string { return nil }
 // the QEMU command line.
 type ArbitraryArgs []string
 
-func (aa ArbitraryArgs) Cmdline(string) []string {
+func (aa ArbitraryArgs) Cmdline(string, *IDAllocator) []string {
 	return aa
 }
 
