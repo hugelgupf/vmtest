@@ -173,6 +173,28 @@ func (ibd IDEBlockDevice) Cmdline(arch string, id *IDAllocator) []string {
 
 func (IDEBlockDevice) KArgs() []string { return nil }
 
+// VirtioSerial exposes a named pipe virtio-serial device to the guest.
+//
+// The guest can find the device by finding /sys/class/virtio-ports/$dev/name
+// that contains the text of the Name member. /dev/$dev will be the
+// communication serial device.
+type VirtioSerial struct {
+	// NamedPipePath is the name of the pipe to write to.
+	NamedPipePath string
+
+	// Name of the device. Guest can use this name to discover the device.
+	Name string
+}
+
+func (s VirtioSerial) Cmdline(arch string, id *IDAllocator) []string {
+	pipeID := id.ID("pipe")
+	return []string{
+		"-device", "virtio-serial",
+		"-chardev", fmt.Sprintf("pipe,id=%s,path=%s", pipeID, s.NamedPipePath),
+		"-device", fmt.Sprintf("virtserialport,chardev=%s,name=%s", pipeID, s.Name),
+	}
+}
+
 // P9Directory is a Device that exposes a directory as a Plan9 (9p)
 // read-write filesystem in the VM.
 type P9Directory struct {
