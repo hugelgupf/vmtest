@@ -17,6 +17,7 @@ package qemu
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -114,10 +115,12 @@ func (o *Options) Start() (*VM, error) {
 	//
 	// VM.Wait waits for these to exit cleanly, so they must exit when the
 	// QEMU process exits.
-	for _, fn := range vms.postStartFn {
-		v.wg.Go(fn)
+	for _, fn := range vms.preExitWaitFn {
+		v.wgPre.Go(fn)
 	}
-	v.wg.Go(v.cmd.Wait)
+	for _, fn := range vms.postExitWaitFn {
+		v.wgPost.Go(fn)
+	}
 	return v, nil
 }
 
@@ -198,7 +201,8 @@ func (o *Options) Cmdline(vms *VMStarter) ([]string, error) {
 
 // VM is a running QEMU virtual machine.
 type VM struct {
-	wg      errgroup.Group
+	wgPre   errgroup.Group
+	wgPost  errgroup.Group
 	Options *Options
 	cmdline []string
 	cmd     *exec.Cmd
@@ -213,9 +217,19 @@ func (v *VM) Cmdline() []string {
 
 // Wait waits for the VM to exit.
 func (v *VM) Wait() error {
-	err := v.wg.Wait()
+	log.Printf("pre exit wait")
+	rerr := v.wgPre.Wait()
+
+	log.Printf("qemu wait")
+	if err := v.cmd.Wait(); err != nil {
+		rerr = err
+	}
+
+	if err := v.wgPost.Wait(); err != nil && rerr == nil {
+		rerr = err
+	}
 	v.Console.Close()
-	return err
+	return rerr
 }
 
 // CmdlineQuoted quotes any of QEMU's command line arguments containing a space

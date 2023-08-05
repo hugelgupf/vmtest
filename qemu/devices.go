@@ -6,20 +6,24 @@ package qemu
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/hugelgupf/vmtest/internal/eventchannel"
 )
 
 type VMStarter struct {
-	ID          *IDAllocator
-	argv        []string
-	kernelArgs  []string
-	extraFiles  []*os.File
-	postStartFn []func() error
+	ID             *IDAllocator
+	argv           []string
+	kernelArgs     []string
+	extraFiles     []*os.File
+	preExitWaitFn  []func() error
+	postExitWaitFn []func() error
 }
 
 func (vms *VMStarter) AppendQEMU(arg ...string) {
@@ -39,10 +43,16 @@ func (vms *VMStarter) AddFile(f *os.File) int {
 	return len(vms.extraFiles) + 2
 }
 
-// AddPostStartGoroutine adds a goroutine that is started after the QEMU
+// PreExitWaitGoroutine adds a goroutine that is started after the QEMU
 // process is started, and will be waited on as part of QEMU process exit.
-func (vms *VMStarter) AddPostStartGoroutine(fn func() error) {
-	vms.postStartFn = append(vms.postStartFn, fn)
+func (vms *VMStarter) PreExitWaitGoroutine(fn func() error) {
+	vms.preExitWaitFn = append(vms.preExitWaitFn, fn)
+}
+
+// PostExitWaitGoroutine adds a goroutine that is started after the QEMU
+// process is started, and will be waited on as part of QEMU process exit.
+func (vms *VMStarter) PostExitWaitGoroutine(fn func() error) {
+	vms.postExitWaitFn = append(vms.postExitWaitFn, fn)
 }
 
 // IDAllocator is used to ensure no overlapping QEMU option IDs.
@@ -342,12 +352,47 @@ func (e eventChannel[T]) Setup(arch string, vms *VMStarter) {
 		"-device", fmt.Sprintf("virtserialport,chardev=%s,name=%s", pipeID, e.name),
 	)
 
-	vms.AddPostStartGoroutine(func() error {
+	r, w := io.Pipe()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	vms.PostExitWaitGoroutine(func() error {
 		// Close write-end on parent side.
 		e.w.Close()
 
-		return eventchannel.ProcessJSONByLine[eventchannel.Event[T]](e.r, func(c eventchannel.Event[T]) {
-			e.handler(c.Actual)
+		go func() {
+			for {
+				b := make([]byte, 1024)
+				n, err := e.r.Read(b[:])
+				if err == io.EOF || (err == nil && n == 0) {
+					log.Printf("close")
+					w.Close()
+					return
+				}
+				m, err := w.Write(b[:n])
+				if err != nil {
+					log.Printf("failed to write: %v", err)
+				} else if m != n {
+					log.Printf("m != n")
+				}
+				log.Printf("received: %s", string(b[:n]))
+			}
+		}()
+
+		return eventchannel.ProcessJSONByLine[eventchannel.Event[T]](r, func(c eventchannel.Event[T]) {
+			switch c.GuestAction {
+			case eventchannel.ActionGuestEvent:
+				e.handler(c.Actual)
+
+			case eventchannel.ActionDone:
+				log.Printf("got done")
+				wg.Done()
+			}
 		})
+	})
+	vms.PreExitWaitGoroutine(func() error {
+		log.Printf("waiting for done")
+		wg.Wait()
+		return nil
 	})
 }

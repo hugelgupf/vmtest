@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,9 @@ func EventChannel[T any](name string) (io.WriteCloser, error) {
 		defer emit.serial.Close()
 		defer r.Close()
 		err := eventchannel.ProcessJSONByLine[T](r, func(t T) {
-			emit.Emit(t)
+			if err := emit.Emit(t); err != nil {
+				log.Printf("error emitting: %v", err)
+			}
 		})
 		errCh <- err
 	}()
@@ -72,6 +75,7 @@ func EventChannel[T any](name string) (io.WriteCloser, error) {
 }
 
 func (e emitter[T]) Write(p []byte) (int, error) {
+	//log.Printf("writing: %s", p)
 	return e.w.Write(p)
 }
 
@@ -83,16 +87,21 @@ func (e emitter[T]) Emit(t T) error {
 }
 
 func (e emitter[T]) sendEvent(event eventchannel.Event[T]) error {
+	log.Printf("emitting %#v", event)
 	b, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
-	if _, err := e.serial.Write(b); err != nil {
+	if n, err := e.serial.Write(b); err != nil {
 		return err
+	} else if n != len(b) {
+		return fmt.Errorf("incomplete write: want %d, sent %d", len(b), n)
 	}
-	if _, err := e.serial.Write([]byte{'\n'}); err != nil {
+	if n, err := e.serial.Write([]byte{'\n'}); err != nil {
 		return err
+	} else if n != 1 {
+		return fmt.Errorf("incomplete write: want %d, sent %d", 1, n)
 	}
 	return nil
 }
