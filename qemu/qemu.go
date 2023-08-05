@@ -22,28 +22,10 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Netflix/go-expect"
 )
-
-// DefaultTimeout for `Expect` and `ExpectRE` functions.
-var DefaultTimeout = 7 * time.Second
-
-// TimeoutMultiplier increases all timeouts proportionally. Useful when running
-// QEMU on a slow machine.
-var TimeoutMultiplier = 1.0
-
-func init() {
-	if timeoutMultS := os.Getenv("UROOT_QEMU_TIMEOUT_X"); len(timeoutMultS) > 0 {
-		t, err := strconv.ParseFloat(timeoutMultS, 64)
-		if err == nil {
-			TimeoutMultiplier = t
-		}
-	}
-}
 
 // Options are VM start-up parameters.
 type Options struct {
@@ -72,9 +54,6 @@ type Options struct {
 
 	// Where to send serial output.
 	SerialOutput io.WriteCloser
-
-	// Timeout is the expect timeout.
-	Timeout time.Duration
 
 	// Devices are devices to expose to the QEMU VM.
 	Devices []Device
