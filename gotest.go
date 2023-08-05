@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
+	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uio"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -155,7 +156,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	tc := json2test.NewTestCollector()
 	serial := []io.Writer{
 		// Collect JSON test events in tc.
-		json2test.EventParser(tc),
+		//json2test.EventParser(tc),
 		// Write non-JSON output to log.
 		jsonLessTestLineWriter(t, "serial"),
 	}
@@ -166,6 +167,11 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	if len(vmCoverProfile) > 0 {
 		o.QEMUOpts.KernelArgs += " uroot.uinitargs=-coverprofile=/testdata/coverage.profile"
 	}
+	ec, err := qemu.NewEventChannel[json2test.TestEvent]("go-test-results", tc.Handle)
+	if err != nil {
+		t.Fatalf("event channel: %v", err)
+	}
+	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices, ec)
 
 	// Create the initramfs and start the VM.
 	vm := startVMTestVM(t, o)

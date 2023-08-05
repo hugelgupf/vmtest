@@ -5,11 +5,46 @@
 package qemu
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"strings"
 	"sync/atomic"
 )
+
+type VMStarter struct {
+	ID          *IDAllocator
+	argv        []string
+	kernelArgs  []string
+	extraFiles  []*os.File
+	postStartFn []func() error
+}
+
+func (vms *VMStarter) AppendQEMU(arg ...string) {
+	vms.argv = append(vms.argv, arg...)
+}
+
+func (vms *VMStarter) AppendKernel(arg ...string) {
+	vms.kernelArgs = append(vms.kernelArgs, arg...)
+}
+
+// AddFile adds the file to the QEMU process and returns the FD it will be in
+// the child process.
+func (vms *VMStarter) AddFile(f *os.File) int {
+	vms.extraFiles = append(vms.extraFiles, f)
+
+	// 0, 1, 2 used for stdin/out/err.
+	return len(vms.extraFiles) + 2
+}
+
+// AddPostStartGoroutine adds a goroutine that is started after the QEMU
+// process is started, and will be waited on as part of QEMU process exit.
+func (vms *VMStarter) AddPostStartGoroutine(fn func() error) {
+	vms.postStartFn = append(vms.postStartFn, fn)
+}
 
 // IDAllocator is used to ensure no overlapping QEMU option IDs.
 type IDAllocator struct {
@@ -34,11 +69,8 @@ func (a *IDAllocator) ID(prefix string) string {
 
 // Device is a QEMU device to expose to a VM.
 type Device interface {
-	// Cmdline returns arguments to append to the QEMU command line for this device.
-	Cmdline(arch string, id *IDAllocator) []string
-
-	// KArgs returns arguments that must be passed to the kernel for this device, or nil.
-	KArgs() []string
+	// Setup appends arguments to the QEMU + kernel command line for this device.
+	Setup(arch string, setup *VMStarter)
 }
 
 // Network is a Device that can connect multiple QEMU VMs to each other.
@@ -64,14 +96,14 @@ func NewNetwork() *Network {
 
 // NetworkOpt returns additional QEMU command-line parameters based on the net
 // device ID.
-type NetworkOpt func(netdev string, id *IDAllocator) []string
+type NetworkOpt func(netdev string, setup *VMStarter) []string
 
 // WithPCAP captures network traffic and saves it to outputFile.
 func WithPCAP(outputFile string) NetworkOpt {
-	return func(netdev string, id *IDAllocator) []string {
+	return func(netdev string, setup *VMStarter) []string {
 		return []string{
 			"-object",
-			fmt.Sprintf("filter-dump,id=%s,netdev=%s,file=%s", id.ID("filter"), netdev, outputFile),
+			fmt.Sprintf("filter-dump,id=%s,netdev=%s,file=%s", setup.ID.ID("filter"), netdev, outputFile),
 		}
 	}
 }
@@ -104,8 +136,8 @@ type networkImpl struct {
 	connect bool
 }
 
-func (n networkImpl) Cmdline(arch string, id *IDAllocator) []string {
-	devID := id.ID("vm")
+func (n networkImpl) Setup(arch string, vms *VMStarter) {
+	devID := vms.ID.ID("vm")
 
 	args := []string{"-device", fmt.Sprintf("e1000,netdev=%s,mac=%s", devID, n.mac)}
 	// Note: QEMU in CircleCI seems to in solve cases fail when using just ':1234' format.
@@ -119,12 +151,10 @@ func (n networkImpl) Cmdline(arch string, id *IDAllocator) []string {
 	}
 
 	for _, opt := range n.nopts {
-		args = append(args, opt(devID, id)...)
+		args = append(args, opt(devID, vms)...)
 	}
-	return args
+	vms.AppendQEMU(args...)
 }
-
-func (n networkImpl) KArgs() []string { return nil }
 
 // ReadOnlyDirectory is a Device that exposes a directory as a /dev/sda1
 // readonly vfat partition in the VM.
@@ -133,45 +163,41 @@ type ReadOnlyDirectory struct {
 	Dir string
 }
 
-func (rod ReadOnlyDirectory) Cmdline(arch string, id *IDAllocator) []string {
+func (rod ReadOnlyDirectory) Setup(arch string, vms *VMStarter) {
 	if len(rod.Dir) == 0 {
-		return nil
+		return
 	}
 
-	drive := id.ID("drive")
-	ahci := id.ID("ahci")
+	drive := vms.ID.ID("drive")
+	ahci := vms.ID.ID("ahci")
 
 	// Expose the temp directory to QEMU as /dev/sda1
-	return []string{
+	vms.AppendQEMU(
 		"-drive", fmt.Sprintf("file=fat:rw:%s,if=none,id=%s", rod.Dir, drive),
 		"-device", fmt.Sprintf("ich9-ahci,id=%s", ahci),
 		"-device", fmt.Sprintf("ide-hd,drive=%s,bus=%s.0", drive, ahci),
-	}
+	)
 }
-
-func (ReadOnlyDirectory) KArgs() []string { return nil }
 
 // IDEBlockDevice emulates an AHCI/IDE block device.
 type IDEBlockDevice struct {
 	File string
 }
 
-func (ibd IDEBlockDevice) Cmdline(arch string, id *IDAllocator) []string {
+func (ibd IDEBlockDevice) Setup(arch string, vms *VMStarter) {
 	if len(ibd.File) == 0 {
-		return nil
+		return
 	}
 
-	drive := id.ID("drive")
-	ahci := id.ID("ahci")
+	drive := vms.ID.ID("drive")
+	ahci := vms.ID.ID("ahci")
 
-	return []string{
+	vms.AppendQEMU(
 		"-drive", fmt.Sprintf("file=%s,if=none,id=%s", ibd.File, drive),
 		"-device", fmt.Sprintf("ich9-ahci,id=%s", ahci),
 		"-device", fmt.Sprintf("ide-hd,drive=%s,bus=%s.0", drive, ahci),
-	}
+	)
 }
-
-func (IDEBlockDevice) KArgs() []string { return nil }
 
 // P9Directory is a Device that exposes a directory as a Plan9 (9p)
 // read-write filesystem in the VM.
@@ -198,9 +224,9 @@ type P9Directory struct {
 	Tag string
 }
 
-func (p P9Directory) Cmdline(arch string, ida *IDAllocator) []string {
+func (p P9Directory) Setup(arch string, vms *VMStarter) {
 	if len(p.Dir) == 0 {
-		return nil
+		return
 	}
 
 	var tag, id string
@@ -227,30 +253,24 @@ func (p P9Directory) Cmdline(arch string, ida *IDAllocator) []string {
 		deviceArgs = fmt.Sprintf("virtio-9p-pci,fsdev=%s,mount_tag=%s", id, tag)
 	}
 
-	return []string{
+	vms.AppendQEMU(
 		// security_model=mapped-file seems to be the best choice. It gives
 		// us control over uid/gid/mode seen in the guest, without requiring
 		// elevated perms on the host.
 		"-fsdev", fmt.Sprintf("local,id=%s,path=%s,security_model=mapped-file", id, p.Dir),
 		"-device", deviceArgs,
-	}
-}
+	)
 
-func (p P9Directory) KArgs() []string {
-	if len(p.Dir) == 0 {
-		return nil
-	}
 	if p.Boot {
-		return []string{
+		vms.AppendKernel(
 			"devtmpfs.mount=1",
 			"root=/dev/root",
 			"rootfstype=9p",
 			"rootflags=trans=virtio,version=9p2000.L",
-		}
-	}
-	return []string{
+		)
+	} else {
 		// seen as an env var by the init process
-		"UROOT_USE_9P=1",
+		vms.AppendKernel("UROOT_USE_9P=1")
 	}
 }
 
@@ -258,18 +278,88 @@ func (p P9Directory) KArgs() []string {
 // QEMU VM.
 type VirtioRandom struct{}
 
-func (VirtioRandom) Cmdline(string, *IDAllocator) []string {
-	return []string{"-device", "virtio-rng-pci"}
+func (VirtioRandom) Setup(arch string, vms *VMStarter) {
+	vms.AppendQEMU("-device", "virtio-rng-pci")
 }
-
-func (VirtioRandom) KArgs() []string { return nil }
 
 // ArbitraryArgs is a Device that allows users to add arbitrary arguments to
 // the QEMU command line.
 type ArbitraryArgs []string
 
-func (aa ArbitraryArgs) Cmdline(string, *IDAllocator) []string {
-	return aa
+func (aa ArbitraryArgs) Setup(arch string, vms *VMStarter) {
+	vms.AppendQEMU(aa...)
 }
 
-func (ArbitraryArgs) KArgs() []string { return nil }
+// VirtioSerial exposes a named pipe virtio-serial device to the guest.
+//
+// The guest can find the device by finding /sys/class/virtio-ports/$dev/name
+// that contains the text of the Name member. /dev/$dev will be the
+// communication serial device.
+type VirtioSerial struct {
+	// NamedPipePath is the name of the pipe to write to.
+	NamedPipePath string
+
+	// Name of the device. Guest can use this name to discover the device.
+	Name string
+}
+
+func (s VirtioSerial) Setup(arch string, vms *VMStarter) {
+	pipeID := vms.ID.ID("pipe")
+	vms.AppendQEMU(
+		"-device", "virtio-serial",
+		"-chardev", fmt.Sprintf("pipe,id=%s,path=%s", pipeID, s.NamedPipePath),
+		"-device", fmt.Sprintf("virtserialport,chardev=%s,name=%s", pipeID, s.Name),
+	)
+}
+
+func processJSONByLine[T any](r io.Reader, callback func(T)) error {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		var e T //eventchannel.Event[T]
+		if err := json.Unmarshal(line, &e); err != nil {
+			return fmt.Errorf("JSON error: %w", err)
+		}
+		callback(e)
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("scanner error: %w", err)
+	}
+	return nil
+}
+
+// NewEventChannel ...
+func NewEventChannel[T any](name string, callback func(T)) (Device, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+
+	return &eventChannel[T]{
+		r:       r,
+		w:       w,
+		handler: callback,
+		name:    name,
+	}, nil
+}
+
+type eventChannel[T any] struct {
+	r, w    *os.File
+	handler func(T)
+	name    string
+}
+
+func (e eventChannel[T]) Setup(arch string, vms *VMStarter) {
+	fd := vms.AddFile(e.w)
+
+	pipeID := vms.ID.ID("pipe")
+	vms.AppendQEMU(
+		"-device", "virtio-serial",
+		"-chardev", fmt.Sprintf("pipe,id=%s,path=/proc/self/fd/%d", pipeID, fd),
+		"-device", fmt.Sprintf("virtserialport,chardev=%s,name=%s", pipeID, e.name),
+	)
+
+	vms.AddPostStartGoroutine(func() error {
+		return processJSONByLine[T](e.r, e.handler)
+	})
+}

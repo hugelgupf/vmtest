@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Netflix/go-expect"
@@ -80,7 +81,11 @@ type Options struct {
 
 // Start starts a QEMU VM.
 func (o *Options) Start() (*VM, error) {
-	cmdline, err := o.Cmdline()
+	vms := &VMStarter{
+		ID: NewIDAllocator(),
+	}
+
+	cmdline, err := o.Cmdline(vms)
 	if err != nil {
 		return nil, err
 	}
@@ -94,15 +99,41 @@ func (o *Options) Start() (*VM, error) {
 	cmd.Stdin = c.Tty()
 	cmd.Stdout = c.Tty()
 	cmd.Stderr = c.Tty()
+	cmd.ExtraFiles = vms.extraFiles
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	return &VM{
+
+	v := &VM{
 		Options: o,
 		Console: c,
 		cmd:     cmd,
 		cmdline: cmdline,
-	}, nil
+
+		errs: make(chan error, len(vms.postStartFn)+1),
+	}
+	var wg sync.WaitGroup
+	// Run post start goroutines.
+	//
+	// VM.Wait waits for these to exit cleanly, so they must exit when the
+	// QEMU process exits.
+	for _, fn := range vms.postStartFn {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v.errs <- fn()
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		v.errs <- v.cmd.Wait()
+	}()
+	go func() {
+		wg.Wait()
+		close(v.errs)
+	}()
+	return v, nil
 }
 
 // Arch returns the presumed guest architecture.
@@ -129,7 +160,7 @@ var GOARCHToQEMUArch = map[string]string{
 
 // Cmdline returns the command line arguments used to start QEMU. These
 // arguments are derived from the given QEMU struct.
-func (o *Options) Cmdline() ([]string, error) {
+func (o *Options) Cmdline(vms *VMStarter) ([]string, error) {
 	var args []string
 	if len(o.QEMUPath) > 0 {
 		args = append(args, o.QEMUPath)
@@ -158,11 +189,11 @@ func (o *Options) Cmdline() ([]string, error) {
 	// - args required by devices
 	for _, dev := range o.Devices {
 		if dev != nil {
-			if a := dev.KArgs(); a != nil {
-				o.KernelArgs += " " + strings.Join(a, " ")
-			}
+			dev.Setup(arch, vms)
 		}
 	}
+
+	o.KernelArgs += " " + strings.Join(vms.kernelArgs, " ")
 	if len(o.Kernel) != 0 {
 		args = append(args, "-kernel", o.Kernel)
 		if len(o.KernelArgs) != 0 {
@@ -176,14 +207,7 @@ func (o *Options) Cmdline() ([]string, error) {
 		args = append(args, "-initrd", o.Initramfs)
 	}
 
-	ida := NewIDAllocator()
-	for _, dev := range o.Devices {
-		if dev != nil {
-			if c := dev.Cmdline(arch, ida); c != nil {
-				args = append(args, c...)
-			}
-		}
-	}
+	args = append(args, vms.argv...)
 	return args, nil
 }
 
@@ -193,6 +217,8 @@ type VM struct {
 	cmdline []string
 	cmd     *exec.Cmd
 	Console *expect.Console
+
+	errs chan error
 }
 
 // Cmdline is the command-line the VM was started with.
@@ -203,8 +229,17 @@ func (v *VM) Cmdline() []string {
 
 // Wait waits for the VM to exit.
 func (v *VM) Wait() error {
-	defer v.Console.Close()
-	return v.cmd.Wait()
+	var err error
+	for e := range v.errs {
+		if e != nil && err == nil {
+			// Don't return immediately so as to process all errors
+			// in the channel.
+			err = e
+		}
+	}
+
+	v.Console.Close()
+	return err
 }
 
 // CmdlineQuoted quotes any of QEMU's command line arguments containing a space
