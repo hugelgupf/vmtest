@@ -6,12 +6,14 @@
 //
 // qemu is mainly suitable for running QEMU-based integration tests.
 //
-// The environment variable `UROOT_QEMU` overrides the path to QEMU and the
-// first few arguments (defaults to "qemu"). For example, I use:
+// The environment variable `VMTEST_QEMU` overrides the path to QEMU and the
+// first few arguments (defaults to "qemu"). For example:
 //
-//	UROOT_QEMU='qemu-system-x86_64 -L . -m 4096 -enable-kvm'
+//	VMTEST_QEMU='qemu-system-x86_64 -L . -m 4096 -enable-kvm'
 //
-// For CI, this environment variable is set in `.circleci/images/integration/Dockerfile`.
+// Other environment variables:
+//
+//	VMTEST_QEMU_ARCH (will be derived from GOARCH by default)
 package qemu
 
 import (
