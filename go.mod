@@ -6,6 +6,7 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/u-root/gobusybox/src v0.0.0-20221229083637-46b2883a7f90
 	github.com/u-root/u-root v0.9.1-0.20230102060129-ff9c8884b4a6
+	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.3.0
 	golang.org/x/tools v0.4.0
 )

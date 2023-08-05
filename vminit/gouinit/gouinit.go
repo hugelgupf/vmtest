@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/guest"
+	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/vminit/common"
 	"golang.org/x/sys/unix"
 )
@@ -79,7 +80,7 @@ func runTest() error {
 	defer cleanup()
 	defer common.CollectKernelCoverage()
 
-	testResultDev, err := guest.VirtioSerialDevice("go-test-results")
+	/*testResultDev, err := guest.VirtioSerialDevice("go-test-results")
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,12 @@ func runTest() error {
 		return err
 	}
 	defer resultF.Sync()
-	defer resultF.Close()
+	defer resultF.Close()*/
+	testResultEvents, err := guest.EventChannel[json2test.TestEvent]("go-test-results")
+	if err != nil {
+		return err
+	}
+	defer testResultEvents.Close()
 
 	walkTests("/testdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
@@ -129,7 +135,7 @@ func runTest() error {
 		// the test, we may lose some of the last few lines.
 		j := exec.Command("test2json", "-t", "-p", pkgName)
 		j.Stdin = r
-		j.Stdout, cmd.Stderr = resultF, os.Stderr
+		j.Stdout, cmd.Stderr = testResultEvents, os.Stderr
 		if err := j.Start(); err != nil {
 			log.Printf("Failed to start test2json: %v", err)
 			return

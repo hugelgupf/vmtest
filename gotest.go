@@ -207,6 +207,8 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		}
 	}
 
+	t.Logf("tests: %+v", tc)
+
 	// TODO: check that tc.Tests == tests
 	for pkg, test := range tc.Tests {
 		switch test.State {

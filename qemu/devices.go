@@ -5,14 +5,13 @@
 package qemu
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/hugelgupf/vmtest/internal/eventchannel"
 )
 
 type VMStarter struct {
@@ -312,22 +311,6 @@ func (s VirtioSerial) Setup(arch string, vms *VMStarter) {
 	)
 }
 
-func processJSONByLine[T any](r io.Reader, callback func(T)) error {
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		var e T //eventchannel.Event[T]
-		if err := json.Unmarshal(line, &e); err != nil {
-			return fmt.Errorf("JSON error: %w", err)
-		}
-		callback(e)
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("scanner error: %w", err)
-	}
-	return nil
-}
-
 // NewEventChannel ...
 func NewEventChannel[T any](name string, callback func(T)) (Device, error) {
 	r, w, err := os.Pipe()
@@ -360,6 +343,11 @@ func (e eventChannel[T]) Setup(arch string, vms *VMStarter) {
 	)
 
 	vms.AddPostStartGoroutine(func() error {
-		return processJSONByLine[T](e.r, e.handler)
+		// Close write-end on parent side.
+		e.w.Close()
+
+		return eventchannel.ProcessJSONByLine[eventchannel.Event[T]](e.r, func(c eventchannel.Event[T]) {
+			e.handler(c.Actual)
+		})
 	})
 }

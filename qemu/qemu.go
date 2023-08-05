@@ -22,10 +22,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Netflix/go-expect"
+	"golang.org/x/sync/errgroup"
 )
 
 // DefaultTimeout for `Expect` and `ExpectRE` functions.
@@ -109,30 +109,15 @@ func (o *Options) Start() (*VM, error) {
 		Console: c,
 		cmd:     cmd,
 		cmdline: cmdline,
-
-		errs: make(chan error, len(vms.postStartFn)+1),
 	}
-	var wg sync.WaitGroup
 	// Run post start goroutines.
 	//
 	// VM.Wait waits for these to exit cleanly, so they must exit when the
 	// QEMU process exits.
 	for _, fn := range vms.postStartFn {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			v.errs <- fn()
-		}()
+		v.wg.Go(fn)
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		v.errs <- v.cmd.Wait()
-	}()
-	go func() {
-		wg.Wait()
-		close(v.errs)
-	}()
+	v.wg.Go(v.cmd.Wait)
 	return v, nil
 }
 
@@ -213,12 +198,11 @@ func (o *Options) Cmdline(vms *VMStarter) ([]string, error) {
 
 // VM is a running QEMU virtual machine.
 type VM struct {
+	wg      errgroup.Group
 	Options *Options
 	cmdline []string
 	cmd     *exec.Cmd
 	Console *expect.Console
-
-	errs chan error
 }
 
 // Cmdline is the command-line the VM was started with.
@@ -229,15 +213,7 @@ func (v *VM) Cmdline() []string {
 
 // Wait waits for the VM to exit.
 func (v *VM) Wait() error {
-	var err error
-	for e := range v.errs {
-		if e != nil && err == nil {
-			// Don't return immediately so as to process all errors
-			// in the channel.
-			err = e
-		}
-	}
-
+	err := v.wg.Wait()
 	v.Console.Close()
 	return err
 }
