@@ -37,6 +37,9 @@ func isCmdlineEqual(got []string, opts ...cmdlineEqualOpt) error {
 		o(&opt)
 	}
 
+	if len(got) == 0 && len(opt.argv0) == 0 && len(opt.components) == 0 {
+		return nil
+	}
 	if len(got) == 0 {
 		return fmt.Errorf("empty cmdline")
 	}
@@ -82,15 +85,62 @@ func TestCmdline(t *testing.T) {
 				withArg("-kernel", "./foobar"),
 			},
 		},
+		{
+			name: "kernel-args-fail",
+			o: &Options{
+				QEMUPath:   "qemu",
+				KernelArgs: "printk=ttyS0",
+			},
+			err: ErrKernelRequiredForArgs,
+		},
+		{
+			name: "device-kernel-args-fail",
+			o: &Options{
+				QEMUPath: "qemu",
+				Devices:  []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
+			},
+			err: ErrKernelRequiredForArgs,
+		},
+		{
+			name: "kernel-args",
+			o: &Options{
+				QEMUPath:   "qemu",
+				Kernel:     "./foobar",
+				KernelArgs: "printk=ttyS0",
+				Devices:    []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+				withArg("-kernel", "./foobar"),
+				withArg("-append", "printk=ttyS0 earlyprintk=ttyS0"),
+			},
+		},
+		{
+			name: "device-kernel-args",
+			o: &Options{
+				QEMUPath: "qemu",
+				Kernel:   "./foobar",
+				Devices:  []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+				withArg("-kernel", "./foobar"),
+				withArg("-append", "earlyprintk=ttyS0"),
+			},
+		},
 	} {
-		got, err := tt.o.Cmdline()
-		if !errors.Is(err, tt.err) {
-			t.Errorf("Cmdline = %v, want %v", err, tt.err)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.o.Cmdline()
+			if !errors.Is(err, tt.err) {
+				t.Errorf("Cmdline = %v, want %v", err, tt.err)
+			}
 
-		t.Logf("Got cmdline: %v", got)
-		if err := isCmdlineEqual(got, tt.want...); err != nil {
-			t.Errorf("Cmdline = %v", err)
-		}
+			t.Logf("Got cmdline: %v", got)
+			if err := isCmdlineEqual(got, tt.want...); err != nil {
+				t.Errorf("Cmdline = %v", err)
+			}
+		})
 	}
 }
