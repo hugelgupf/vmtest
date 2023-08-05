@@ -102,10 +102,11 @@ func TestCmdline(t *testing.T) {
 			err: ErrKernelRequiredForArgs,
 		},
 		{
-			name: "kernel-args",
+			name: "kernel-args-initrd",
 			o: &Options{
 				QEMUPath:   "qemu",
 				Kernel:     "./foobar",
+				Initramfs:  "./initrd",
 				KernelArgs: "printk=ttyS0",
 				Devices:    []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
 			},
@@ -113,6 +114,7 @@ func TestCmdline(t *testing.T) {
 				withArgv0("qemu"),
 				withArg("-nographic"),
 				withArg("-kernel", "./foobar"),
+				withArg("-initrd", "./initrd"),
 				withArg("-append", "printk=ttyS0 earlyprintk=ttyS0"),
 			},
 		},
@@ -128,6 +130,28 @@ func TestCmdline(t *testing.T) {
 				withArg("-nographic"),
 				withArg("-kernel", "./foobar"),
 				withArg("-append", "earlyprintk=ttyS0"),
+			},
+		},
+		{
+			name: "id-allocator",
+			o: &Options{
+				QEMUPath: "qemu",
+				Kernel:   "./foobar",
+				Devices: []Device{
+					IDEBlockDevice{"./disk1"},
+					IDEBlockDevice{"./disk2"},
+				},
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+				withArg("-kernel", "./foobar"),
+				withArg("-drive", "file=./disk1,if=none,id=drive0",
+					"-device", "ich9-ahci,id=ahci0",
+					"-device", "ide-hd,drive=drive0,bus=ahci0.0"),
+				withArg("-drive", "file=./disk2,if=none,id=drive1",
+					"-device", "ich9-ahci,id=ahci1",
+					"-device", "ide-hd,drive=drive1,bus=ahci1.0"),
 			},
 		},
 	} {
