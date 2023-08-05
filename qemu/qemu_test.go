@@ -5,12 +5,32 @@
 package qemu
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 
+	"github.com/u-root/gobusybox/src/pkg/golang"
+	"github.com/u-root/u-root/pkg/ulog/ulogtest"
+	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/u-root/pkg/uroot/initramfs"
 	"golang.org/x/exp/slices"
 )
+
+func replaceCtl(str []byte) []byte {
+	for i, c := range str {
+		if c == 9 || c == 10 {
+		} else if c < 32 || c == 127 {
+			str[i] = '~'
+		}
+	}
+	return str
+}
 
 type cmdlineEqualOpt func(*cmdlineEqualOption)
 
@@ -167,4 +187,83 @@ func TestCmdline(t *testing.T) {
 			}
 		})
 	}
+}
+
+func guestGOARCH() string {
+	if env := os.Getenv("VMTEST_GOARCH"); env != "" {
+		return env
+	}
+	return runtime.GOARCH
+}
+
+func TestStartVM(t *testing.T) {
+	tmp := t.TempDir()
+	logger := &ulogtest.Logger{TB: t}
+	initrdPath := filepath.Join(tmp, "initramfs.cpio")
+	initrdWriter, err := initramfs.CPIO.OpenWriter(logger, initrdPath)
+	if err != nil {
+		t.Fatalf("Failed to create initramfs writer: %v", err)
+	}
+
+	env := golang.Default()
+	env.CgoEnabled = false
+	env.GOARCH = guestGOARCH()
+
+	uopts := uroot.Opts{
+		Env:        &env,
+		InitCmd:    "init",
+		UinitCmd:   "qemutest1",
+		OutputFile: initrdWriter,
+		TempDir:    tmp,
+	}
+	uopts.AddBusyBoxCommands(
+		"github.com/u-root/u-root/cmds/core/init",
+		"github.com/hugelgupf/vmtest/qemu/qemutest1",
+	)
+	if err := uroot.CreateInitramfs(logger, uopts); err != nil {
+		t.Fatalf("error creating initramfs: %v", err)
+	}
+
+	r, w := io.Pipe()
+	opts := &Options{
+		QEMUArch:     GOARCHToQEMUArch[guestGOARCH()],
+		Kernel:       os.Getenv("VMTEST_KERNEL"),
+		Initramfs:    initrdPath,
+		SerialOutput: w,
+	}
+	if arch, err := opts.Arch(); err != nil {
+		t.Fatal(err)
+	} else if arch == "arm" {
+		opts.KernelArgs = "console=ttyAMA0"
+	} else if arch == "x86_64" {
+		opts.KernelArgs = "console=ttyS0 earlyprintk=ttyS0"
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s := bufio.NewScanner(r)
+		for s.Scan() {
+			t.Logf("vm: %s", replaceCtl(s.Bytes()))
+		}
+		if err := s.Err(); err != nil {
+			t.Errorf("Error reading serial from VM: %v", err)
+		}
+	}()
+
+	vm, err := opts.Start()
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	if _, err := vm.Console.ExpectString("I AM HERE"); err != nil {
+		t.Errorf("Error expecting I AM HERE: %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Fatalf("Error waiting for VM to exit: %v", err)
+	}
+	wg.Wait()
 }

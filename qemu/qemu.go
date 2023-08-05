@@ -70,7 +70,10 @@ func (o *Options) Start() (*VM, error) {
 		return nil, err
 	}
 
-	c, err := expect.NewConsole(expect.WithStdout(o.SerialOutput))
+	c, err := expect.NewConsole(
+		expect.WithStdout(o.SerialOutput),
+		expect.WithCloser(o.SerialOutput),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +85,11 @@ func (o *Options) Start() (*VM, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+
+	// Close tty in parent, so that when child exits, the last reference to
+	// it is gone and Console.Expect* calls automatically exit.
+	c.Tty().Close()
+
 	return &VM{
 		Options: o,
 		Console: c,
@@ -194,10 +202,14 @@ func (v *VM) Cmdline() []string {
 	return v.cmdline
 }
 
-// Wait waits for the VM to exit.
+// Wait waits for the VM to exit and expects EOF from the expect console.
 func (v *VM) Wait() error {
-	defer v.Console.Close()
-	return v.cmd.Wait()
+	err := v.cmd.Wait()
+	if _, cerr := v.Console.ExpectEOF(); cerr != nil && err == nil {
+		err = cerr
+	}
+	v.Console.Close()
+	return err
 }
 
 // CmdlineQuoted quotes any of QEMU's command line arguments containing a space
