@@ -345,12 +345,18 @@ type eventChannel[T any] struct {
 func (e eventChannel[T]) Setup(arch string, vms *VMStarter) {
 	fd := vms.AddFile(e.w)
 
-	pipeID := vms.ID.ID("pipe")
+	netID := vms.ID.ID("net")
+	vms.AppendQEMU(
+		"-device", fmt.Sprintf("e1000,netdev=%s", netID),
+		"-netdev", fmt.Sprintf("user,id=%s,net=192.168.0.0/24,dhcpstart=192.168.0.10,ipv6=off"),
+	)
+
+	/*pipeID := vms.ID.ID("pipe")
 	vms.AppendQEMU(
 		"-device", "virtio-serial",
 		"-chardev", fmt.Sprintf("pipe,id=%s,path=/proc/self/fd/%d", pipeID, fd),
 		"-device", fmt.Sprintf("virtserialport,chardev=%s,name=%s", pipeID, e.name),
-	)
+	)*/
 
 	r, w := io.Pipe()
 
