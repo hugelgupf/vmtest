@@ -17,6 +17,7 @@
 package qemu
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,9 @@ import (
 
 	"github.com/Netflix/go-expect"
 )
+
+// ErrKernelRequiredForArgs is returned when KernelArgs is populated but Kernel is empty.
+var ErrKernelRequiredForArgs = errors.New("KernelArgs can only be used when Kernel is also specified due to how QEMU bootloader works")
 
 // Options are VM start-up parameters.
 type Options struct {
@@ -108,6 +112,15 @@ var GOARCHToQEMUArch = map[string]string{
 	"arm64": "aarch64",
 }
 
+// AppendKernel appends to kernel args.
+func (o *Options) AppendKernel(s string) {
+	if len(o.KernelArgs) == 0 {
+		o.KernelArgs = s
+	} else {
+		o.KernelArgs += " " + s
+	}
+}
+
 // Cmdline returns the command line arguments used to start QEMU. These
 // arguments are derived from the given QEMU struct.
 func (o *Options) Cmdline() ([]string, error) {
@@ -140,7 +153,7 @@ func (o *Options) Cmdline() ([]string, error) {
 	for _, dev := range o.Devices {
 		if dev != nil {
 			if a := dev.KArgs(); a != nil {
-				o.KernelArgs += " " + strings.Join(a, " ")
+				o.AppendKernel(strings.Join(a, " "))
 			}
 		}
 	}
@@ -150,8 +163,7 @@ func (o *Options) Cmdline() ([]string, error) {
 			args = append(args, "-append", o.KernelArgs)
 		}
 	} else if len(o.KernelArgs) != 0 {
-		err := fmt.Errorf("kernel args are required but cannot be added due to bootloader")
-		return nil, err
+		return nil, ErrKernelRequiredForArgs
 	}
 	if len(o.Initramfs) != 0 {
 		args = append(args, "-initrd", o.Initramfs)

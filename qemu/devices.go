@@ -273,3 +273,11 @@ func (aa ArbitraryArgs) Cmdline(string, *IDAllocator) []string {
 }
 
 func (ArbitraryArgs) KArgs() []string { return nil }
+
+// ArbitraryKernelArgs is a Device that allows users to add kernel arbitrary
+// arguments to the QEMU command line.
+type ArbitraryKernelArgs []string
+
+func (ArbitraryKernelArgs) Cmdline(string, *IDAllocator) []string { return nil }
+
+func (aa ArbitraryKernelArgs) KArgs() []string { return aa }
