@@ -6,6 +6,7 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/u-root/gobusybox/src v0.0.0-20221229083637-46b2883a7f90
 	github.com/u-root/u-root v0.9.1-0.20230102060129-ff9c8884b4a6
+	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
 	golang.org/x/sys v0.3.0
 	golang.org/x/tools v0.4.0
 )
@@ -29,7 +30,7 @@ require (
 	github.com/ulikunitz/xz v0.5.8 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
-	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.3.0 // indirect
 	src.elv.sh v0.16.0-rc1.0.20220116211855-fda62502ad7f // indirect
 )
