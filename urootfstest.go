@@ -89,7 +89,7 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 		o.SharedDir = t.TempDir()
 	}
 
-	os.Setenv("VMTEST_QEMU_ARCH", qemu.GOARCHToQEMUArch[GuestGOARCH()])
+	os.Setenv("VMTEST_QEMU_ARCH", string(qemu.GOARCHToQEMUArch[GuestGOARCH()]))
 
 	// Set the initramfs.
 	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {

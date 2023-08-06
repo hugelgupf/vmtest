@@ -35,7 +35,7 @@ func (a *IDAllocator) ID(prefix string) string {
 // Device is a QEMU device to expose to a VM.
 type Device interface {
 	// Cmdline returns arguments to append to the QEMU command line for this device.
-	Cmdline(arch string, id *IDAllocator) []string
+	Cmdline(arch GuestArch, id *IDAllocator) []string
 
 	// KArgs returns arguments that must be passed to the kernel for this device, or nil.
 	KArgs() []string
@@ -104,7 +104,7 @@ type networkImpl struct {
 	connect bool
 }
 
-func (n networkImpl) Cmdline(arch string, id *IDAllocator) []string {
+func (n networkImpl) Cmdline(arch GuestArch, id *IDAllocator) []string {
 	devID := id.ID("vm")
 
 	args := []string{"-device", fmt.Sprintf("e1000,netdev=%s,mac=%s", devID, n.mac)}
@@ -133,7 +133,7 @@ type ReadOnlyDirectory struct {
 	Dir string
 }
 
-func (rod ReadOnlyDirectory) Cmdline(arch string, id *IDAllocator) []string {
+func (rod ReadOnlyDirectory) Cmdline(arch GuestArch, id *IDAllocator) []string {
 	if len(rod.Dir) == 0 {
 		return nil
 	}
@@ -156,7 +156,7 @@ type IDEBlockDevice struct {
 	File string
 }
 
-func (ibd IDEBlockDevice) Cmdline(arch string, id *IDAllocator) []string {
+func (ibd IDEBlockDevice) Cmdline(arch GuestArch, id *IDAllocator) []string {
 	if len(ibd.File) == 0 {
 		return nil
 	}
@@ -198,7 +198,7 @@ type P9Directory struct {
 	Tag string
 }
 
-func (p P9Directory) Cmdline(arch string, ida *IDAllocator) []string {
+func (p P9Directory) Cmdline(arch GuestArch, ida *IDAllocator) []string {
 	if len(p.Dir) == 0 {
 		return nil
 	}
@@ -221,7 +221,7 @@ func (p P9Directory) Cmdline(arch string, ida *IDAllocator) []string {
 	// Expose the temp directory to QEMU
 	var deviceArgs string
 	switch arch {
-	case "arm":
+	case GuestArchArm:
 		deviceArgs = fmt.Sprintf("virtio-9p-device,fsdev=%s,mount_tag=%s", id, tag)
 	default:
 		deviceArgs = fmt.Sprintf("virtio-9p-pci,fsdev=%s,mount_tag=%s", id, tag)
@@ -258,7 +258,7 @@ func (p P9Directory) KArgs() []string {
 // QEMU VM.
 type VirtioRandom struct{}
 
-func (VirtioRandom) Cmdline(string, *IDAllocator) []string {
+func (VirtioRandom) Cmdline(GuestArch, *IDAllocator) []string {
 	return []string{"-device", "virtio-rng-pci"}
 }
 
@@ -268,7 +268,7 @@ func (VirtioRandom) KArgs() []string { return nil }
 // the QEMU command line.
 type ArbitraryArgs []string
 
-func (aa ArbitraryArgs) Cmdline(string, *IDAllocator) []string {
+func (aa ArbitraryArgs) Cmdline(GuestArch, *IDAllocator) []string {
 	return aa
 }
 
@@ -278,6 +278,6 @@ func (ArbitraryArgs) KArgs() []string { return nil }
 // arguments to the QEMU command line.
 type ArbitraryKernelArgs []string
 
-func (ArbitraryKernelArgs) Cmdline(string, *IDAllocator) []string { return nil }
+func (ArbitraryKernelArgs) Cmdline(GuestArch, *IDAllocator) []string { return nil }
 
 func (aa ArbitraryKernelArgs) KArgs() []string { return aa }
