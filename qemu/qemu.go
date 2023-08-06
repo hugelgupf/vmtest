@@ -13,7 +13,7 @@
 //
 // Other environment variables:
 //
-//	VMTEST_QEMU_ARCH (will be derived from GOARCH by default)
+//	VMTEST_QEMU_ARCH (used when Options.QEMUArch is empty)
 //	VMTEST_KERNEL (used when Options.Kernel is empty)
 //	VMTEST_INITRAMFS (used when Options.Initramfs is empty)
 package qemu
@@ -24,14 +24,43 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/Netflix/go-expect"
+	"golang.org/x/exp/slices"
 )
 
 // ErrKernelRequiredForArgs is returned when KernelArgs is populated but Kernel is empty.
 var ErrKernelRequiredForArgs = errors.New("KernelArgs can only be used when Kernel is also specified due to how QEMU bootloader works")
+
+// ErrNoGuestArch is returned when neither Options.QEMUPath nor VMTEST_QEMU_ARCH are set.
+var ErrNoGuestArch = errors.New("no QEMU guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
+
+// ErrUnsupportedGuestArch is returned when an unsupported guest architecture value is used.
+var ErrUnsupportedGuestArch = errors.New("unsupported QEMU guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
+
+// GuestArch is the QEMU guest architecture.
+type GuestArch string
+
+const (
+	GuestArchX8664   GuestArch = "x86_64"
+	GuestArchI386    GuestArch = "i386"
+	GuestArchAarch64 GuestArch = "aarch64"
+	GuestArchArm     GuestArch = "arm"
+)
+
+// SupportedGuestArches are the supported guest architecture values.
+var SupportedGuestArches = []GuestArch{
+	GuestArchX8664,
+	GuestArchI386,
+	GuestArchAarch64,
+	GuestArchArm,
+}
+
+// Valid returns whether the guest arch is a supported guest arch value.
+func (g GuestArch) Valid() bool {
+	return slices.Contains(SupportedGuestArches, g)
+}
 
 // Options are VM start-up parameters.
 type Options struct {
@@ -45,9 +74,7 @@ type Options struct {
 	//
 	// Some device decisions are made based on the architecture.
 	// If empty, VMTEST_QEMU_ARCH env var will be used.
-	// If the env var is unspecified, the architecture default will be the
-	// host arch.
-	QEMUArch string
+	QEMUArch GuestArch
 
 	// Path to the kernel to boot.
 	//
@@ -105,25 +132,29 @@ func (o *Options) Start() (*VM, error) {
 }
 
 // Arch returns the presumed guest architecture.
-func (o *Options) Arch() (string, error) {
+func (o *Options) Arch() (GuestArch, error) {
+	var arch GuestArch
 	if len(o.QEMUArch) > 0 {
-		return o.QEMUArch, nil
+		arch = o.QEMUArch
+	} else if a := os.Getenv("VMTEST_QEMU_ARCH"); len(a) > 0 {
+		arch = GuestArch(a)
 	}
-	if a := os.Getenv("VMTEST_QEMU_ARCH"); len(a) > 0 {
-		return a, nil
+
+	if len(arch) == 0 {
+		return "", ErrNoGuestArch
 	}
-	if a, ok := GOARCHToQEMUArch[runtime.GOARCH]; ok {
-		return a, nil
+	if !arch.Valid() {
+		return "", fmt.Errorf("%w: %s", ErrUnsupportedGuestArch, arch)
 	}
-	return "", fmt.Errorf("could not determine QEMU guest arch from VMTEST_QEMU_ARCH or GOARCH")
+	return arch, nil
 }
 
 // GOARCHToQEMUArch maps GOARCH to QEMU arch values.
-var GOARCHToQEMUArch = map[string]string{
-	"386":   "i386",
-	"amd64": "x86_64",
-	"arm":   "arm",
-	"arm64": "aarch64",
+var GOARCHToQEMUArch = map[string]GuestArch{
+	"386":   GuestArchI386,
+	"amd64": GuestArchX8664,
+	"arm":   GuestArchArm,
+	"arm64": GuestArchAarch64,
 }
 
 // AppendKernel appends to kernel args.

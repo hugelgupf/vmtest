@@ -118,6 +118,7 @@ func TestCmdline(t *testing.T) {
 			name: "simple",
 			o: &Options{
 				QEMUPath: "qemu",
+				QEMUArch: GuestArchX8664,
 				Kernel:   "./foobar",
 			},
 			want: []cmdlineEqualOpt{
@@ -130,6 +131,7 @@ func TestCmdline(t *testing.T) {
 			name: "kernel-args-fail",
 			o: &Options{
 				QEMUPath:   "qemu",
+				QEMUArch:   GuestArchX8664,
 				KernelArgs: "printk=ttyS0",
 			},
 			err: ErrKernelRequiredForArgs,
@@ -138,6 +140,7 @@ func TestCmdline(t *testing.T) {
 			name: "device-kernel-args-fail",
 			o: &Options{
 				QEMUPath: "qemu",
+				QEMUArch: GuestArchX8664,
 				Devices:  []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
 			},
 			err: ErrKernelRequiredForArgs,
@@ -146,6 +149,7 @@ func TestCmdline(t *testing.T) {
 			name: "kernel-args-initrd-with-precedence-over-env",
 			o: &Options{
 				QEMUPath:   "qemu",
+				QEMUArch:   GuestArchX8664,
 				Kernel:     "./foobar",
 				Initramfs:  "./initrd",
 				KernelArgs: "printk=ttyS0",
@@ -153,6 +157,7 @@ func TestCmdline(t *testing.T) {
 			},
 			envv: map[string]string{
 				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
+				"VMTEST_QEMU_ARCH": "i386",
 				"VMTEST_KERNEL":    "./baz",
 				"VMTEST_INITRAMFS": "./init.cpio",
 			},
@@ -168,6 +173,7 @@ func TestCmdline(t *testing.T) {
 			name: "device-kernel-args",
 			o: &Options{
 				QEMUPath: "qemu",
+				QEMUArch: GuestArchX8664,
 				Kernel:   "./foobar",
 				Devices:  []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
 			},
@@ -182,6 +188,7 @@ func TestCmdline(t *testing.T) {
 			name: "id-allocator",
 			o: &Options{
 				QEMUPath: "qemu",
+				QEMUArch: GuestArchX8664,
 				Kernel:   "./foobar",
 				Devices: []Device{
 					IDEBlockDevice{"./disk1"},
@@ -205,6 +212,7 @@ func TestCmdline(t *testing.T) {
 			o:    &Options{},
 			envv: map[string]string{
 				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
+				"VMTEST_QEMU_ARCH": "x86_64",
 				"VMTEST_KERNEL":    "./foobar",
 				"VMTEST_INITRAMFS": "./init.cpio",
 			},
@@ -237,6 +245,14 @@ func TestCmdline(t *testing.T) {
 			}
 		})
 	}
+}
+
+// goarchToQEMUArch maps GOARCH to QEMU arch values.
+var goarchToQEMUArch = map[string]GuestArch{
+	"386":   GuestArchI386,
+	"amd64": GuestArchX8664,
+	"arm":   GuestArchArm,
+	"arm64": GuestArchAarch64,
 }
 
 func guestGOARCH() string {
@@ -277,7 +293,7 @@ func TestStartVM(t *testing.T) {
 	r, w := io.Pipe()
 	opts := &Options{
 		// Using VMTEST_KERNEL && VMTEST_QEMU.
-		QEMUArch:     GOARCHToQEMUArch[guestGOARCH()],
+		QEMUArch:     goarchToQEMUArch[guestGOARCH()],
 		Initramfs:    initrdPath,
 		SerialOutput: w,
 	}
