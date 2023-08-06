@@ -15,6 +15,7 @@
 //
 //	VMTEST_GOARCH (used when Initramfs.Env.GOARCH is empty)
 //	VMTEST_KERNEL (used when Initramfs.VMOpts.Kernel is empty)
+//	VMTEST_INITRAMFS_OVERRIDE (when set, use instead of building an initramfs)
 package uqemu
 
 import (
@@ -76,11 +77,6 @@ var GOARCHToQEMUArch = map[string]qemu.GuestArch{
 // BuildInitramfs builds the specified initramfs and returns VM options with
 // the created initramfs and corresponding QEMU architecture.
 func (o *Options) BuildInitramfs(logger ulog.Logger) (*qemu.Options, error) {
-	// We're going to fill this in ourselves.
-	if o.Initramfs.OutputFile != nil {
-		return nil, ErrOutputFileSpecified
-	}
-
 	uopts := o.Initramfs
 	if uopts.Env == nil {
 		env := golang.Default()
@@ -89,18 +85,27 @@ func (o *Options) BuildInitramfs(logger ulog.Logger) (*qemu.Options, error) {
 		uopts.Env = &env
 	}
 
-	initrdW, err := initramfs.CPIO.OpenWriter(logger, o.InitrdPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create initramfs writer: %w", err)
-	}
-	uopts.OutputFile = initrdW
-
-	if err := uroot.CreateInitramfs(logger, uopts); err != nil {
-		return nil, fmt.Errorf("error creating initramfs: %w", err)
-	}
-
 	vmopts := o.VMOpts
-	vmopts.Initramfs = o.InitrdPath
+	if override := os.Getenv("VMTEST_INITRAMFS_OVERRIDE"); len(override) > 0 {
+		vmopts.Initramfs = override
+	} else {
+		// We're going to fill this in ourselves.
+		if o.Initramfs.OutputFile != nil {
+			return nil, ErrOutputFileSpecified
+		}
+
+		initrdW, err := initramfs.CPIO.OpenWriter(logger, o.InitrdPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create initramfs writer: %w", err)
+		}
+		uopts.OutputFile = initrdW
+
+		if err := uroot.CreateInitramfs(logger, uopts); err != nil {
+			return nil, fmt.Errorf("error creating initramfs: %w", err)
+		}
+		vmopts.Initramfs = o.InitrdPath
+	}
+
 	if _, err := vmopts.Arch(); errors.Is(err, qemu.ErrNoGuestArch) {
 		vmopts.QEMUArch = GOARCHToQEMUArch[uopts.Env.GOARCH]
 	}
