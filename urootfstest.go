@@ -6,19 +6,15 @@ package vmtest
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/cp"
+	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/u-root/pkg/ulog"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
-	"github.com/u-root/u-root/pkg/uroot/initramfs"
 )
 
 // startVMTestVM starts u-root-based vmtest VMs that conform to vmtest's
@@ -70,9 +66,9 @@ type UrootFSOptions struct {
 // It uses a caller-supplied kernel, or if not set, one supplied by the
 // VMTEST_KERNEL env var.
 //
-// If VMTEST_INITRAMFS is set, that initramfs overrides the options set in this
-// test. (This can be used to, for example, run the same test with an initramfs
-// built by bazel rules.)
+// If VMTEST_INITRAMFS_OVERRIDE is set, that initramfs overrides the options
+// set in this test. (This can be used to, for example, run the same test with
+// an initramfs built by bazel rules.)
 //
 // Automatically sets VMTEST_QEMU_ARCH based on the VMTEST_GOARCH (which is
 // runtime.GOARCH by default).
@@ -89,17 +85,11 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 		o.SharedDir = t.TempDir()
 	}
 
-	os.Setenv("VMTEST_QEMU_ARCH", string(qemu.GOARCHToQEMUArch[GuestGOARCH()]))
+	qemuOpts := o.getQEMUOpts(t)
+	vmopts := o.VMOptions
+	vmopts.QEMUOpts = *qemuOpts
 
-	// Set the initramfs.
-	if len(o.VMOptions.QEMUOpts.Initramfs) == 0 {
-		o.VMOptions.QEMUOpts.Initramfs = filepath.Join(o.SharedDir, "initramfs.cpio")
-		if err := chooseTestInitramfs(o.Logger, o.BuildOpts, o.VMOptions.QEMUOpts.Initramfs); err != nil {
-			t.Fatalf("Could not choose an initramfs for u-root-initramfs-based VM test: %v", err)
-		}
-	}
-
-	return StartVM(t, &o.VMOptions)
+	return StartVM(t, &vmopts)
 }
 
 // Tests are run from u-root/integration/{gotests,generic-tests}/
@@ -128,86 +118,37 @@ func saveCoverage(t testing.TB, path string) error {
 	return nil
 }
 
-// chooseTestInitramfs chooses which initramfs will be used for a given test and
-// places it at the location given by outputFile.
-// Default to the override initramfs if one is specified in the UROOT_INITRAMFS
-// environment variable. Else, build an initramfs with the given parameters.
-// If no uinit was provided, the generic one is used.
-func chooseTestInitramfs(logger ulog.Logger, o uroot.Opts, outputFile string) error {
-	override := os.Getenv("VMTEST_INITRAMFS")
-	if len(override) > 0 {
-		log.Printf("Overriding with initramfs %q from VMTEST_INITRAMFS", override)
-		return cp.Copy(override, outputFile)
-	}
-
-	_, err := createTestInitramfs(logger, o, outputFile)
-	return err
-}
-
-// GuestGOARCH returns the Guest GOARCH under test. Either VMTEST_GOARCH or
-// runtime.GOARCH.
-func GuestGOARCH() string {
-	if env := os.Getenv("VMTEST_GOARCH"); env != "" {
-		return env
-	}
-	return runtime.GOARCH
-}
-
-// createTestInitramfs creates an initramfs with the given build options
-// and writes it to the given output file. If no output file is provided,
-// one will be created.
-// The output file name is returned. It is the caller's responsibility to remove
-// the initramfs file after use.
-func createTestInitramfs(logger ulog.Logger, o uroot.Opts, outputFile string) (string, error) {
-	if o.Env == nil {
-		env := golang.Default()
-		env.CgoEnabled = false
-		env.GOARCH = GuestGOARCH()
-		o.Env = &env
-	}
-
-	// If build opts don't specify any commands, include all commands. Else,
-	// always add init and elvish.
-	o.AddBusyBoxCommands(
+func (o *UrootFSOptions) getQEMUOpts(t testing.TB) *qemu.Options {
+	// Always add init and elvish.
+	o.BuildOpts.AddBusyBoxCommands(
 		"github.com/u-root/u-root/cmds/core/init",
 		"github.com/u-root/u-root/cmds/core/elvish",
 	)
-
-	// Fill in the default build options if not specified.
-	if o.BaseArchive == nil {
-		o.BaseArchive = uroot.DefaultRamfs().Reader()
+	if len(o.BuildOpts.InitCmd) == 0 {
+		o.BuildOpts.InitCmd = "init"
 	}
-	if len(o.InitCmd) == 0 {
-		o.InitCmd = "init"
+	if len(o.BuildOpts.DefaultShell) == 0 {
+		o.BuildOpts.DefaultShell = "elvish"
 	}
-	if len(o.DefaultShell) == 0 {
-		o.DefaultShell = "elvish"
-	}
-	if len(o.TempDir) == 0 {
-		tempDir, err := os.MkdirTemp("", "initramfs-tempdir")
+	if len(o.BuildOpts.TempDir) == 0 {
+		tempDir := filepath.Join(o.SharedDir, "initramfs-tempdir")
+		err := os.Mkdir(tempDir, 0755)
 		if err != nil {
-			return "", fmt.Errorf("Failed to create temp dir: %v", err)
+			t.Fatalf("Failed to create temp dir: %v", err)
 		}
 		defer os.RemoveAll(tempDir)
-		o.TempDir = tempDir
+
+		o.BuildOpts.TempDir = tempDir
 	}
 
-	// Create an output file if one was not provided.
-	if len(outputFile) == 0 {
-		f, err := os.CreateTemp("", "initramfs.cpio")
-		if err != nil {
-			return "", fmt.Errorf("failed to create output file: %v", err)
-		}
-		outputFile = f.Name()
+	uopts := uqemu.Options{
+		Initramfs:  o.BuildOpts,
+		VMOpts:     o.VMOptions.QEMUOpts,
+		InitrdPath: filepath.Join(o.SharedDir, "initramfs.cpio"),
 	}
-	w, err := initramfs.CPIO.OpenWriter(logger, outputFile)
+	qemuOpts, err := uopts.BuildInitramfs(o.Logger)
 	if err != nil {
-		return "", fmt.Errorf("failed to create initramfs writer: %v", err)
+		t.Fatalf("Failed to build an initramfs: %v", err)
 	}
-	o.OutputFile = w
-
-	if err := uroot.CreateInitramfs(logger, o); err != nil {
-		return "", fmt.Errorf("error creating initramfs: %v", err)
-	}
-	return outputFile, nil
+	return qemuOpts
 }
