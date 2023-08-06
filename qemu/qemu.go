@@ -149,14 +149,6 @@ func (o *Options) Arch() (GuestArch, error) {
 	return arch, nil
 }
 
-// GOARCHToQEMUArch maps GOARCH to QEMU arch values.
-var GOARCHToQEMUArch = map[string]GuestArch{
-	"386":   GuestArchI386,
-	"amd64": GuestArchX8664,
-	"arm":   GuestArchArm,
-	"arm64": GuestArchAarch64,
-}
-
 // AppendKernel appends to kernel args.
 func (o *Options) AppendKernel(s string) {
 	if len(o.KernelArgs) == 0 {
