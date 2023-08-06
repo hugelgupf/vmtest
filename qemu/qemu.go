@@ -19,6 +19,7 @@
 package qemu
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/Netflix/go-expect"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 )
 
 // ErrKernelRequiredForArgs is returned when KernelArgs is populated but Kernel is empty.
@@ -94,6 +96,38 @@ type Options struct {
 
 	// Devices are devices to expose to the QEMU VM.
 	Devices []Device
+
+	// Tasks are tasks running alongside the guest.
+	//
+	// A task is started in a goroutine right before the guest is started.
+	// A task is expected to exit either when ctx is canceled or when the
+	// QEMU subprocess exits.
+	Tasks []Task
+}
+
+// Task is a task running alongside the guest.
+//
+// A task is expected to exit either when ctx is canceled or when the QEMU
+// subprocess exits.
+type Task func(ctx context.Context, n *Notifications) error
+
+// Notifications gives tasks the option to wait for certain VM events.
+//
+// Tasks must not be required to listen on notifications; there must be no
+// blocking channel I/O.
+type Notifications struct {
+	// VMStarted will be closed when the VM is started.
+	VMStarted chan struct{}
+
+	// VMExited will receive exactly 1 event when the VM exits and then be closed.
+	VMExited chan error
+}
+
+func newNotifications() *Notifications {
+	return &Notifications{
+		VMStarted: make(chan struct{}),
+		VMExited:  make(chan error, 1),
+	}
 }
 
 // Start starts a QEMU VM.
@@ -111,24 +145,37 @@ func (o *Options) Start() (*VM, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	vm := &VM{
+		Options: o,
+		Console: c,
+		cmdline: cmdline,
+		cancel:  cancel,
+	}
+	for _, task := range o.Tasks {
+		n := newNotifications()
+		vm.wg.Go(func() error {
+			return task(ctx, n)
+		})
+		vm.notifs = append(vm.notifs, n)
+	}
+
 	cmd := exec.Command(cmdline[0], cmdline[1:]...)
 	cmd.Stdin = c.Tty()
 	cmd.Stdout = c.Tty()
 	cmd.Stderr = c.Tty()
 	if err := cmd.Start(); err != nil {
+		cancel()
 		return nil, err
 	}
+	vm.notifs.VMStarted()
 
 	// Close tty in parent, so that when child exits, the last reference to
 	// it is gone and Console.Expect* calls automatically exit.
 	c.Tty().Close()
 
-	return &VM{
-		Options: o,
-		Console: c,
-		cmd:     cmd,
-		cmdline: cmdline,
-	}, nil
+	vm.cmd = cmd
+	return vm, nil
 }
 
 // Arch returns the presumed guest architecture.
@@ -229,10 +276,14 @@ func (o *Options) Cmdline() ([]string, error) {
 
 // VM is a running QEMU virtual machine.
 type VM struct {
+	wg errgroup.Group
+
 	Options *Options
 	cmdline []string
 	cmd     *exec.Cmd
 	Console *expect.Console
+	notifs  notifications
+	cancel  func()
 }
 
 // Cmdline is the command-line the VM was started with.
@@ -244,10 +295,16 @@ func (v *VM) Cmdline() []string {
 // Wait waits for the VM to exit and expects EOF from the expect console.
 func (v *VM) Wait() error {
 	err := v.cmd.Wait()
+	v.notifs.VMExited(err)
 	if _, cerr := v.Console.ExpectEOF(); cerr != nil && err == nil {
 		err = cerr
 	}
 	v.Console.Close()
+
+	v.cancel()
+	if werr := v.wg.Wait(); werr != nil && err == nil {
+		err = werr
+	}
 	return err
 }
 
@@ -263,4 +320,19 @@ func (v *VM) CmdlineQuoted() string {
 		}
 	}
 	return strings.Join(args, " ")
+}
+
+type notifications []*Notifications
+
+func (n notifications) VMStarted() {
+	for _, m := range n {
+		close(m.VMStarted)
+	}
+}
+
+func (n notifications) VMExited(err error) {
+	for _, m := range n {
+		m.VMExited <- err
+		close(m.VMExited)
+	}
 }
