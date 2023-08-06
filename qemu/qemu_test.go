@@ -87,10 +87,31 @@ func isCmdlineEqual(got []string, opts ...cmdlineEqualOpt) error {
 }
 
 func TestCmdline(t *testing.T) {
+	resetVars := []string{
+		"VMTEST_QEMU",
+		"VMTEST_QEMU_ARCH",
+		"VMTEST_KERNEL",
+		"VMTEST_INITRAMFS",
+	}
+	// In case these env vars are actually set by calling env & used below
+	// in other tests, save their values, set them to empty for duration of
+	// test & restore them after.
+	savedEnv := make(map[string]string)
+	for _, key := range resetVars {
+		savedEnv[key] = os.Getenv(key)
+		os.Setenv(key, "")
+	}
+	t.Cleanup(func() {
+		for key, val := range savedEnv {
+			os.Setenv(key, val)
+		}
+	})
+
 	for _, tt := range []struct {
 		name string
 		o    *Options
 		want []cmdlineEqualOpt
+		envv map[string]string
 		err  error
 	}{
 		{
@@ -122,13 +143,18 @@ func TestCmdline(t *testing.T) {
 			err: ErrKernelRequiredForArgs,
 		},
 		{
-			name: "kernel-args-initrd",
+			name: "kernel-args-initrd-with-precedence-over-env",
 			o: &Options{
 				QEMUPath:   "qemu",
 				Kernel:     "./foobar",
 				Initramfs:  "./initrd",
 				KernelArgs: "printk=ttyS0",
 				Devices:    []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
+			},
+			envv: map[string]string{
+				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
+				"VMTEST_KERNEL":    "./baz",
+				"VMTEST_INITRAMFS": "./init.cpio",
 			},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
@@ -174,8 +200,32 @@ func TestCmdline(t *testing.T) {
 					"-device", "ide-hd,drive=drive1,bus=ahci1.0"),
 			},
 		},
+		{
+			name: "env-config",
+			o:    &Options{},
+			envv: map[string]string{
+				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
+				"VMTEST_KERNEL":    "./foobar",
+				"VMTEST_INITRAMFS": "./init.cpio",
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu-system-x86_64"),
+				withArg("-nographic"),
+				withArg("-enable-kvm", "-m", "1G"),
+				withArg("-initrd", "./init.cpio"),
+				withArg("-kernel", "./foobar"),
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			for key, val := range tt.envv {
+				os.Setenv(key, val)
+			}
+			t.Cleanup(func() {
+				for key := range tt.envv {
+					os.Setenv(key, "")
+				}
+			})
 			got, err := tt.o.Cmdline()
 			if !errors.Is(err, tt.err) {
 				t.Errorf("Cmdline = %v, want %v", err, tt.err)
@@ -226,8 +276,8 @@ func TestStartVM(t *testing.T) {
 
 	r, w := io.Pipe()
 	opts := &Options{
+		// Using VMTEST_KERNEL && VMTEST_QEMU.
 		QEMUArch:     GOARCHToQEMUArch[guestGOARCH()],
-		Kernel:       os.Getenv("VMTEST_KERNEL"),
 		Initramfs:    initrdPath,
 		SerialOutput: w,
 	}
