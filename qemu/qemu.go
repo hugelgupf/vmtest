@@ -111,6 +111,20 @@ type Options struct {
 // subprocess exits.
 type Task func(ctx context.Context, n *Notifications) error
 
+// WaitVMStarted waits until the VM has started before starting t, or never
+// starts t if context is canceled before the VM is started.
+func WaitVMStarted(t Task) Task {
+	return func(ctx context.Context, n *Notifications) error {
+		// Wait until VM starts or exit if it never does.
+		select {
+		case <-n.VMStarted:
+		case <-ctx.Done():
+			return nil
+		}
+		return t(ctx, n)
+	}
+}
+
 // Notifications gives tasks the option to wait for certain VM events.
 //
 // Tasks must not be required to listen on notifications; there must be no
@@ -153,6 +167,8 @@ func (o *Options) Start() (*VM, error) {
 		cancel:  cancel,
 	}
 	for _, task := range o.Tasks {
+		// Capture the var... Go stuff.
+		task := task
 		n := newNotifications()
 		vm.wg.Go(func() error {
 			return task(ctx, n)
