@@ -6,15 +6,110 @@ package uqemu
 
 import (
 	"bufio"
+	"errors"
 	"io"
+	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 )
+
+func TestOverride(t *testing.T) {
+	resetVars := []string{
+		"VMTEST_QEMU",
+		"VMTEST_QEMU_ARCH",
+		"VMTEST_GOARCH",
+		"VMTEST_KERNEL",
+		"VMTEST_INITRAMFS",
+		"VMTEST_INITRAMFS_OVERRIDE",
+	}
+	// In case these env vars are actually set by calling env & used below
+	// in other tests, save their values, set them to empty for duration of
+	// test & restore them after.
+	savedEnv := make(map[string]string)
+	for _, key := range resetVars {
+		savedEnv[key] = os.Getenv(key)
+		os.Setenv(key, "")
+	}
+	t.Cleanup(func() {
+		for key, val := range savedEnv {
+			os.Setenv(key, val)
+		}
+	})
+
+	env386 := golang.Default()
+	env386.GOARCH = "386"
+	for _, tt := range []struct {
+		name string
+		envv map[string]string
+		o    *Options
+		want *qemu.Options
+		err  error
+	}{
+		{
+			name: "initramfs-override",
+			envv: map[string]string{
+				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
+				"VMTEST_GOARCH":             "amd64",
+			},
+			o: &Options{
+				Initramfs: uroot.Opts{Env: &env386},
+			},
+			want: &qemu.Options{
+				Initramfs: "./foo.cpio",
+				QEMUArch:  "i386",
+			},
+		},
+		{
+			name: "initramfs-override-and-goarch",
+			envv: map[string]string{
+				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
+				"VMTEST_GOARCH":             "386",
+			},
+			o: &Options{},
+			want: &qemu.Options{
+				Initramfs: "./foo.cpio",
+				QEMUArch:  "i386",
+			},
+		},
+		{
+			name: "initramfs-override-and-runtime-goarch",
+			envv: map[string]string{
+				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
+			},
+			o: &Options{},
+			want: &qemu.Options{
+				Initramfs: "./foo.cpio",
+				QEMUArch:  "x86_64",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, val := range tt.envv {
+				os.Setenv(key, val)
+			}
+			t.Cleanup(func() {
+				for key := range tt.envv {
+					os.Setenv(key, "")
+				}
+			})
+
+			got, err := tt.o.BuildInitramfs(&ulogtest.Logger{TB: t})
+			if !errors.Is(err, tt.err) {
+				t.Errorf("Build = %v, want %v", err, tt.err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Build = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func replaceCtl(str []byte) []byte {
 	for i, c := range str {
