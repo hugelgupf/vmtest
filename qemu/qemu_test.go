@@ -6,6 +6,7 @@ package qemu
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"github.com/u-root/u-root/pkg/uroot"
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sys/unix"
 )
 
 func replaceCtl(str []byte) []byte {
@@ -332,4 +334,31 @@ func TestStartVM(t *testing.T) {
 		t.Fatalf("Error waiting for VM to exit: %v", err)
 	}
 	wg.Wait()
+}
+
+func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
+	var taskGotCanceled bool
+
+	opts := Options{
+		// Some path that does not exist.
+		QEMUPath: filepath.Join(t.TempDir(), "qemu"),
+		QEMUArch: "x86_64",
+		Tasks: []Task{
+			// Make sure that the test does not time out
+			// forever -- context must get canceled.
+			func(ctx context.Context, n *Notifications) error {
+				<-ctx.Done()
+				taskGotCanceled = true
+				return nil
+			},
+		},
+	}
+
+	if _, err := opts.Start(); !errors.Is(err, unix.ENOENT) {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+
+	if !taskGotCanceled {
+		t.Error("Error: Task did not get canceled")
+	}
 }

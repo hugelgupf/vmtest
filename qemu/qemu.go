@@ -181,7 +181,11 @@ func (o *Options) Start() (*VM, error) {
 	cmd.Stdout = c.Tty()
 	cmd.Stderr = c.Tty()
 	if err := cmd.Start(); err != nil {
+		// Cancel tasks.
 		cancel()
+		// Wait for tasks to exit. Some day we'll report their errors
+		// with errors.Join.
+		_ = vm.wg.Wait()
 		return nil, err
 	}
 	vm.notifs.VMStarted()
