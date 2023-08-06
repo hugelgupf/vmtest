@@ -8,11 +8,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/u-root/u-root/pkg/cp"
 )
 
 var (
@@ -72,22 +70,6 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	if o.QEMUOpts.SerialOutput == nil {
 		o.QEMUOpts.SerialOutput = TestLineWriter(t, consoleOutputName)
 	}
-	if len(o.QEMUOpts.Kernel) == 0 {
-		// Copy kernel to o.SharedDir for tests involving kexec.
-		kernel := filepath.Join(o.SharedDir, "kernel")
-		if err := cp.Copy(os.Getenv("VMTEST_KERNEL"), kernel); err != nil {
-			t.Fatalf("Could not copy VMTEST_KERNEL: %v", err)
-		}
-		o.QEMUOpts.Kernel = kernel
-	}
-	if len(o.QEMUOpts.Initramfs) == 0 {
-		// Copy initramfs to o.SharedDir.
-		initramfs := filepath.Join(o.SharedDir, "initramfs.cpio")
-		if err := cp.Copy(os.Getenv("VMTEST_INITRAMFS"), initramfs); err != nil {
-			t.Fatalf("Could not copy VMTEST_INITRAMFS: %v", err)
-		}
-		o.QEMUOpts.Initramfs = initramfs
-	}
 
 	// Make sure console gets to the logs.
 	arch, err := o.QEMUOpts.Arch()
@@ -96,14 +78,14 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	}
 	switch arch {
 	case "x86_64":
-		o.QEMUOpts.KernelArgs += " console=ttyS0 earlyprintk=ttyS0"
+		o.QEMUOpts.AppendKernel("console=ttyS0 earlyprintk=ttyS0")
 	case "arm":
-		o.QEMUOpts.KernelArgs += " console=ttyAMA0"
+		o.QEMUOpts.AppendKernel("console=ttyAMA0")
 	}
 
 	// Tests use this cmdline arg to identify they are running inside a
 	// vmtest using SkipIfNotInVM
-	o.QEMUOpts.KernelArgs += " uroot.vmtest"
+	o.QEMUOpts.AppendKernel("uroot.vmtest")
 
 	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices,
 		qemu.VirtioRandom{},
