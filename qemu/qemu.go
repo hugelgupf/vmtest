@@ -14,6 +14,8 @@
 // Other environment variables:
 //
 //	VMTEST_QEMU_ARCH (will be derived from GOARCH by default)
+//	VMTEST_KERNEL (used when Options.Kernel is empty)
+//	VMTEST_INITRAMFS (used when Options.Initramfs is empty)
 package qemu
 
 import (
@@ -35,22 +37,26 @@ var ErrKernelRequiredForArgs = errors.New("KernelArgs can only be used when Kern
 type Options struct {
 	// QEMUPath is the path to the QEMU binary to invoke.
 	//
-	// If left unspecified, the VMTEST_QEMU env var will be used.
+	// If empty, the VMTEST_QEMU env var will be used.
 	// If the env var is unspecified, "qemu" is the default.
 	QEMUPath string
 
 	// QEMUArch is the QEMU architecture used.
 	//
 	// Some device decisions are made based on the architecture.
-	// If left unspecified, VMTEST_QEMU_ARCH env var will be used.
+	// If empty, VMTEST_QEMU_ARCH env var will be used.
 	// If the env var is unspecified, the architecture default will be the
 	// host arch.
 	QEMUArch string
 
 	// Path to the kernel to boot.
+	//
+	// If empty, VMTEST_KERNEL env var will be used.
 	Kernel string
 
 	// Path to the initramfs.
+	//
+	// If empty, VMTEST_INITRAMFS env var will be used.
 	Initramfs string
 
 	// Extra kernel command-line arguments.
@@ -165,16 +171,26 @@ func (o *Options) Cmdline() ([]string, error) {
 			}
 		}
 	}
-	if len(o.Kernel) != 0 {
-		args = append(args, "-kernel", o.Kernel)
+	var kernel string
+	if len(o.Kernel) > 0 {
+		kernel = o.Kernel
+	} else if k := os.Getenv("VMTEST_KERNEL"); len(k) > 0 {
+		kernel = k
+	}
+
+	if len(kernel) > 0 {
+		args = append(args, "-kernel", kernel)
 		if len(o.KernelArgs) != 0 {
 			args = append(args, "-append", o.KernelArgs)
 		}
 	} else if len(o.KernelArgs) != 0 {
 		return nil, ErrKernelRequiredForArgs
 	}
+
 	if len(o.Initramfs) != 0 {
 		args = append(args, "-initrd", o.Initramfs)
+	} else if i := os.Getenv("VMTEST_INITRAMFS"); len(i) > 0 {
+		args = append(args, "-initrd", i)
 	}
 
 	ida := NewIDAllocator()
