@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
+	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uio"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -69,7 +70,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	// Set up u-root build options.
 	env := golang.Default()
 	env.CgoEnabled = false
-	env.GOARCH = GuestGOARCH()
+	env.GOARCH = uqemu.GuestGOARCH()
 	o.BuildOpts.Env = &env
 
 	// Statically build tests and add them to the temporary directory.
