@@ -6,11 +6,14 @@ package uqemu
 
 import (
 	"bufio"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -178,4 +181,100 @@ func TestStartVM(t *testing.T) {
 		t.Fatalf("Error waiting for VM to exit: %v", err)
 	}
 	wg.Wait()
+}
+
+func TestTask(t *testing.T) {
+	tmp := t.TempDir()
+	logger := &ulogtest.Logger{TB: t}
+	initrdPath := filepath.Join(tmp, "initramfs.cpio")
+
+	r, w := io.Pipe()
+	var kernelArgs string
+	switch GuestGOARCH() {
+	case "arm":
+		kernelArgs = "console=ttyAMA0"
+	case "amd64":
+		kernelArgs = "console=ttyS0 earlyprintk=ttyS0"
+	}
+
+	var taskGotCanceled bool
+	var taskSawIAmHere bool
+	var vmExitErr error
+
+	uopts := Options{
+		Initramfs: uroot.Opts{
+			InitCmd:  "init",
+			UinitCmd: "qemutest1",
+			TempDir:  tmp,
+			Commands: uroot.BusyBoxCmds(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/qemu/qemutest1",
+			),
+		},
+		InitrdPath: initrdPath,
+		VMOpts: qemu.Options{
+			SerialOutput: w,
+			KernelArgs:   kernelArgs,
+			Tasks: []qemu.Task{
+				// Tests that we can wait for VM to start.
+				qemu.WaitVMStarted(func(ctx context.Context, n *qemu.Notifications) error {
+					s := bufio.NewScanner(r)
+					for s.Scan() {
+						line := string(replaceCtl(s.Bytes()))
+						if strings.Contains(line, "I AM HERE") {
+							taskSawIAmHere = true
+						}
+						t.Logf("vm: %s", line)
+					}
+					if err := s.Err(); err != nil {
+						return fmt.Errorf("error reading serial from VM: %v", err)
+					}
+					return nil
+				}),
+
+				// Make sure that the test does not time out
+				// forever -- context must get canceled.
+				func(ctx context.Context, n *qemu.Notifications) error {
+					<-ctx.Done()
+					taskGotCanceled = true
+					return nil
+				},
+
+				// Make sure that the VMExit event is always there.
+				func(ctx context.Context, n *qemu.Notifications) error {
+					err, ok := <-n.VMExited
+					if !ok {
+						return fmt.Errorf("failed to read from VM exit notifications")
+					}
+					vmExitErr = err
+					return nil
+				},
+			},
+		},
+	}
+
+	vm, err := uopts.Start(logger)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	if _, err := vm.Console.ExpectString("I AM HERE"); err != nil {
+		t.Errorf("Error expecting I AM HERE: %v", err)
+	}
+
+	werr := vm.Wait()
+	if werr != nil {
+		t.Errorf("Error waiting for VM to exit: %v", werr)
+	}
+
+	if !reflect.DeepEqual(werr, vmExitErr) {
+		t.Errorf("Error: Exit notification error is %v, want %v", vmExitErr, werr)
+	}
+	if !taskGotCanceled {
+		t.Error("Error: Task did not get canceled")
+	}
+	if !taskSawIAmHere {
+		t.Error("Error: Serial console task didn't see I AM HERE")
+	}
 }
