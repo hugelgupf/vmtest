@@ -12,7 +12,6 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/uqemu"
-	"github.com/u-root/u-root/pkg/ulog"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 )
@@ -53,11 +52,6 @@ type UrootFSOptions struct {
 	// They are used if the test needs to generate an initramfs.
 	// Fields that are not set are populated as possible.
 	BuildOpts uroot.Opts
-
-	// Logger logs build statements.
-	//
-	// If unset, an implementation that logs to t.Logf is used.
-	Logger ulog.Logger
 }
 
 // StartUrootFSVM creates a u-root initramfs with the given options and starts
@@ -75,21 +69,34 @@ type UrootFSOptions struct {
 func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
-	if len(o.Name) == 0 {
-		o.Name = t.Name()
+	if o.VMOptions.GuestArch != nil {
+		t.Fatal("UrootFSOptions must not specify GuestArch")
 	}
-	if o.Logger == nil {
-		o.Logger = &ulogtest.Logger{TB: t}
-	}
-	if o.SharedDir == "" {
-		o.SharedDir = t.TempDir()
-	}
-
-	qemuOpts := o.getQEMUOpts(t)
 	vmopts := o.VMOptions
-	vmopts.QEMUOpts = *qemuOpts
-
+	vmopts.GuestArch = WithUroot(t, o.BuildOpts)
 	return StartVM(t, &vmopts)
+}
+
+func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.ArchFn {
+	// Always add init and elvish.
+	initramfs.AddBusyBoxCommands(
+		"github.com/u-root/u-root/cmds/core/init",
+		"github.com/u-root/u-root/cmds/core/elvish",
+	)
+	if len(initramfs.InitCmd) == 0 {
+		initramfs.InitCmd = "init"
+	}
+	if len(initramfs.DefaultShell) == 0 {
+		initramfs.DefaultShell = "elvish"
+	}
+	if len(initramfs.TempDir) == 0 {
+		tempDir := filepath.Join(t.TempDir(), "initramfs-tempdir")
+		if err := os.Mkdir(tempDir, 0755); err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		initramfs.TempDir = tempDir
+	}
+	return uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio"))
 }
 
 // Tests are run from u-root/integration/{gotests,generic-tests}/
@@ -116,39 +123,4 @@ func saveCoverage(t testing.TB, path string) error {
 		return err
 	}
 	return nil
-}
-
-func (o *UrootFSOptions) getQEMUOpts(t testing.TB) *qemu.Options {
-	// Always add init and elvish.
-	o.BuildOpts.AddBusyBoxCommands(
-		"github.com/u-root/u-root/cmds/core/init",
-		"github.com/u-root/u-root/cmds/core/elvish",
-	)
-	if len(o.BuildOpts.InitCmd) == 0 {
-		o.BuildOpts.InitCmd = "init"
-	}
-	if len(o.BuildOpts.DefaultShell) == 0 {
-		o.BuildOpts.DefaultShell = "elvish"
-	}
-	if len(o.BuildOpts.TempDir) == 0 {
-		tempDir := filepath.Join(o.SharedDir, "initramfs-tempdir")
-		err := os.Mkdir(tempDir, 0755)
-		if err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
-
-		o.BuildOpts.TempDir = tempDir
-	}
-
-	uopts := uqemu.Options{
-		Initramfs:  o.BuildOpts,
-		VMOpts:     o.VMOptions.QEMUOpts,
-		InitrdPath: filepath.Join(o.SharedDir, "initramfs.cpio"),
-	}
-	qemuOpts, err := uopts.BuildInitramfs(o.Logger)
-	if err != nil {
-		t.Fatalf("Failed to build an initramfs: %v", err)
-	}
-	return qemuOpts
 }

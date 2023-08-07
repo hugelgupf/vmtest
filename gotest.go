@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
+	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uio"
@@ -158,12 +159,12 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		// Write non-JSON output to log.
 		jsonLessTestLineWriter(t, "serial"),
 	}
-	if o.QEMUOpts.SerialOutput != nil {
+	/*if o.QEMUOpts.SerialOutput != nil {
 		serial = append(serial, o.QEMUOpts.SerialOutput)
-	}
-	o.QEMUOpts.SerialOutput = uio.MultiWriteCloser(serial...)
+	}*/
+	o.QEMUOpts = append(o.QEMUOpts, qemu.WithSerialOutput(uio.MultiWriteCloser(serial...)))
 	if len(vmCoverProfile) > 0 {
-		o.QEMUOpts.KernelArgs += " uroot.uinitargs=-coverprofile=/testdata/coverage.profile"
+		o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel("uroot.uinitargs=-coverprofile=/testdata/coverage.profile"))
 	}
 
 	// Create the initramfs and start the VM.
