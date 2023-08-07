@@ -125,9 +125,9 @@ func WithAppendKernel(args ...string) Fn {
 }
 
 // WithSerialOutput writes serial output to w as well.
-func WithSerialOutput(w io.WriteCloser) Fn {
+func WithSerialOutput(w ...io.WriteCloser) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
-		opts.SerialOutput = w
+		opts.SerialOutput = append(opts.SerialOutput, w...)
 		return nil
 	}
 }
@@ -207,7 +207,7 @@ type Options struct {
 	KernelArgs string
 
 	// Where to send serial output.
-	SerialOutput io.WriteCloser
+	SerialOutput []io.WriteCloser
 
 	// Tasks are tasks running alongside the guest.
 	//
@@ -273,10 +273,11 @@ func (o *Options) Start() (*VM, error) {
 		return nil, err
 	}
 
-	c, err := expect.NewConsole(
-		expect.WithStdout(o.SerialOutput),
-		expect.WithCloser(o.SerialOutput),
-	)
+	var eopt []expect.ConsoleOpt
+	for _, serial := range o.SerialOutput {
+		eopt = append(eopt, expect.WithStdout(serial), expect.WithCloser(serial))
+	}
+	c, err := expect.NewConsole(eopt...)
 	if err != nil {
 		return nil, err
 	}

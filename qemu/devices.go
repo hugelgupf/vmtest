@@ -297,7 +297,7 @@ func replaceCtl(str []byte) []byte {
 func LogSerialByLine(callback func(line string)) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
 		r, w := io.Pipe()
-		opts.SerialOutput = w
+		opts.SerialOutput = append(opts.SerialOutput, w)
 		opts.Tasks = append(opts.Tasks, WaitVMStarted(func(ctx context.Context, n *Notifications) error {
 			s := bufio.NewScanner(r)
 			for s.Scan() {
