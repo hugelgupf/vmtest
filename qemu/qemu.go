@@ -7,7 +7,7 @@
 // qemu is mainly suitable for running QEMU-based integration tests.
 //
 // The environment variable `VMTEST_QEMU` overrides the path to QEMU and the
-// first few arguments (defaults to "qemu"). For example:
+// first few arguments. For example:
 //
 //	VMTEST_QEMU='qemu-system-x86_64 -L . -m 4096 -enable-kvm'
 //
@@ -45,6 +45,7 @@ var ErrUnsupportedGuestArch = errors.New("unsupported QEMU guest architecture sp
 type GuestArch string
 
 const (
+	GuestArchUseEnvv GuestArch = ""
 	GuestArchX8664   GuestArch = "x86_64"
 	GuestArchI386    GuestArch = "i386"
 	GuestArchAarch64 GuestArch = "aarch64"
@@ -64,19 +65,133 @@ func (g GuestArch) Valid() bool {
 	return slices.Contains(SupportedGuestArches, g)
 }
 
+// Set implements ArchFn for GuestArch.
+func (g GuestArch) Setup(alloc *IDAllocator, opts *Options) error {
+	return nil
+}
+
+// Arch returns the guest architecture.
+func (g GuestArch) Arch() GuestArch {
+	if g == GuestArchUseEnvv {
+		g = GuestArch(os.Getenv("VMTEST_QEMU_ARCH"))
+	}
+	return g
+}
+
+// Fn is a QEMU configuration option supplied to Start or OptionsFor.
+//
+// Fns rely on a QEMU architecture already having been determined.
+type Fn func(*IDAllocator, *Options) error
+
+// ArchFn is a Fn that can modify Options and set the architecture. It runs before any other Fn.
+type ArchFn interface {
+	Setup(*IDAllocator, *Options) error
+	Arch() GuestArch
+}
+
+// WithQEMUPath sets the path to the QEMU binary.
+//
+// path may contain additional QEMU args, such as "qemu -enable-kvm -m 1G".
+// They will be appended to the command-line.
+func WithQEMUPath(path string) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.QEMUPath = path
+		return nil
+	}
+}
+
+// WithKernel sets the path to the kernel binary.
+func WithKernel(kernel string) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.Kernel = kernel
+		return nil
+	}
+}
+
+// WithInitramfs sets the path to the initramfs.
+func WithInitramfs(initramfs string) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.Initramfs = initramfs
+		return nil
+	}
+}
+
+// WithAppendKernel appends kernel arguments.
+func WithAppendKernel(args ...string) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.AppendKernel(strings.Join(args, " "))
+		return nil
+	}
+}
+
+// WithSerialOutput writes serial output to w as well.
+func WithSerialOutput(w io.WriteCloser) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.SerialOutput = w
+		return nil
+	}
+}
+
+// WithTask adds a task running alongside the guest.
+//
+// A task is a goroutine right before the guest is started.
+// A task is expected to exit either when ctx is canceled or when the
+// QEMU subprocess exits. When the context is canceled, the QEMU subprocess is
+// expected to exit as well, and when the QEMU subprocess exits, the context is
+// canceled.
+func WithTask(t ...Task) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.Tasks = append(opts.Tasks, t...)
+		return nil
+	}
+}
+
+// OptionsFor evaluates the given config functions and returns an Options object.
+func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
+	alloc := NewIDAllocator()
+	o := &Options{
+		QEMUPath:  os.Getenv("VMTEST_QEMU"),
+		Kernel:    os.Getenv("VMTEST_KERNEL"),
+		Initramfs: os.Getenv("VMTEST_INITRAMFS"),
+	}
+
+	if err := o.setArch(archFn.Arch()); err != nil {
+		return nil, err
+	}
+	if err := archFn.Setup(alloc, o); err != nil {
+		return nil, err
+	}
+
+	for _, f := range fns {
+		if err := f(alloc, o); err != nil {
+			return nil, err
+		}
+	}
+	return o, nil
+}
+
+// Start starts a VM with the given configuration.
+func Start(arch ArchFn, fns ...Fn) (*VM, error) {
+	o, err := OptionsFor(arch, fns...)
+	if err != nil {
+		return nil, err
+	}
+	return o.Start()
+}
+
 // Options are VM start-up parameters.
 type Options struct {
+	// arch is the QEMU architecture used.
+	//
+	// Some device decisions are made based on the architecture.
+	// If empty, VMTEST_QEMU_ARCH env var will be used.
+	arch GuestArch
+
 	// QEMUPath is the path to the QEMU binary to invoke.
 	//
 	// If empty, the VMTEST_QEMU env var will be used.
 	// If the env var is unspecified, "qemu" is the default.
 	QEMUPath string
-
-	// QEMUArch is the QEMU architecture used.
-	//
-	// Some device decisions are made based on the architecture.
-	// If empty, VMTEST_QEMU_ARCH env var will be used.
-	QEMUArch GuestArch
 
 	// Path to the kernel to boot.
 	//
@@ -94,15 +209,17 @@ type Options struct {
 	// Where to send serial output.
 	SerialOutput io.WriteCloser
 
-	// Devices are devices to expose to the QEMU VM.
-	Devices []Device
-
 	// Tasks are tasks running alongside the guest.
 	//
-	// A task is started in a goroutine right before the guest is started.
+	// A task is a goroutine right before the guest is started.
 	// A task is expected to exit either when ctx is canceled or when the
-	// QEMU subprocess exits.
+	// QEMU subprocess exits. When the context is canceled, the QEMU
+	// subprocess is expected to exit as well, and when the QEMU subprocess
+	// exits, the context is canceled.
 	Tasks []Task
+
+	// Additional QEMU cmdline arguments.
+	QEMUArgs []string
 }
 
 // Task is a task running alongside the guest.
@@ -142,6 +259,11 @@ func newNotifications() *Notifications {
 		VMStarted: make(chan struct{}),
 		VMExited:  make(chan error, 1),
 	}
+}
+
+// GuestArch returns the guest architecture.
+func (o *Options) GuestArch() GuestArch {
+	return o.arch
 }
 
 // Start starts a QEMU VM.
@@ -198,78 +320,48 @@ func (o *Options) Start() (*VM, error) {
 	return vm, nil
 }
 
-// Arch returns the presumed guest architecture.
-func (o *Options) Arch() (GuestArch, error) {
-	var arch GuestArch
-	if len(o.QEMUArch) > 0 {
-		arch = o.QEMUArch
-	} else if a := os.Getenv("VMTEST_QEMU_ARCH"); len(a) > 0 {
-		arch = GuestArch(a)
-	}
-
+func (o *Options) setArch(arch GuestArch) error {
 	if len(arch) == 0 {
-		return "", ErrNoGuestArch
+		return ErrNoGuestArch
 	}
 	if !arch.Valid() {
-		return "", fmt.Errorf("%w: %s", ErrUnsupportedGuestArch, arch)
+		return fmt.Errorf("%w: %s", ErrUnsupportedGuestArch, arch)
 	}
-	return arch, nil
+	o.arch = arch
+	return nil
 }
 
 // AppendKernel appends to kernel args.
-func (o *Options) AppendKernel(s string) {
-	if len(o.KernelArgs) == 0 {
-		o.KernelArgs = s
-	} else {
-		o.KernelArgs += " " + s
+func (o *Options) AppendKernel(s ...string) {
+	if len(s) == 0 {
+		return
 	}
+	t := strings.Join(s, " ")
+	if len(o.KernelArgs) == 0 {
+		o.KernelArgs = t
+	} else {
+		o.KernelArgs += " " + t
+	}
+}
+
+// AppendQEMU appends args to the QEMU command line.
+func (o *Options) AppendQEMU(s ...string) {
+	o.QEMUArgs = append(o.QEMUArgs, s...)
 }
 
 // Cmdline returns the command line arguments used to start QEMU. These
 // arguments are derived from the given QEMU struct.
 func (o *Options) Cmdline() ([]string, error) {
 	var args []string
-	if len(o.QEMUPath) > 0 {
-		args = append(args, o.QEMUPath)
-	} else {
-		// Read first few arguments for env.
-		env := os.Getenv("VMTEST_QEMU")
-		if env == "" {
-			env = "qemu" // default
-		}
-		args = append(args, strings.Fields(env)...)
-	}
 
-	arch, err := o.Arch()
-	if err != nil {
-		return nil, err
-	}
+	// QEMU binary + initial args (may have been supplied via VMTEST_QEMU).
+	args = append(args, strings.Fields(o.QEMUPath)...)
 
 	// Disable graphics because we are using serial.
 	args = append(args, "-nographic")
 
-	// Arguments passed to the kernel:
-	//
-	// - earlyprintk=ttyS0: print very early debug messages to the serial
-	// - console=ttyS0: /dev/console points to /dev/ttyS0 (the serial port)
-	// - o.KernelArgs: extra, optional kernel arguments
-	// - args required by devices
-	for _, dev := range o.Devices {
-		if dev != nil {
-			if a := dev.KArgs(); a != nil {
-				o.AppendKernel(strings.Join(a, " "))
-			}
-		}
-	}
-	var kernel string
 	if len(o.Kernel) > 0 {
-		kernel = o.Kernel
-	} else if k := os.Getenv("VMTEST_KERNEL"); len(k) > 0 {
-		kernel = k
-	}
-
-	if len(kernel) > 0 {
-		args = append(args, "-kernel", kernel)
+		args = append(args, "-kernel", o.Kernel)
 		if len(o.KernelArgs) != 0 {
 			args = append(args, "-append", o.KernelArgs)
 		}
@@ -279,18 +371,9 @@ func (o *Options) Cmdline() ([]string, error) {
 
 	if len(o.Initramfs) != 0 {
 		args = append(args, "-initrd", o.Initramfs)
-	} else if i := os.Getenv("VMTEST_INITRAMFS"); len(i) > 0 {
-		args = append(args, "-initrd", i)
 	}
 
-	ida := NewIDAllocator()
-	for _, dev := range o.Devices {
-		if dev != nil {
-			if c := dev.Cmdline(arch, ida); c != nil {
-				args = append(args, c...)
-			}
-		}
-	}
+	args = append(args, o.QEMUArgs...)
 	return args, nil
 }
 

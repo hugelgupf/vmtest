@@ -5,15 +5,12 @@
 package qemu
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"testing"
 
 	"github.com/u-root/gobusybox/src/pkg/golang"
@@ -23,16 +20,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 )
-
-func replaceCtl(str []byte) []byte {
-	for i, c := range str {
-		if c == 9 || c == 10 {
-		} else if c < 32 || c == 127 {
-			str[i] = '~'
-		}
-	}
-	return str
-}
 
 type cmdlineEqualOpt func(*cmdlineEqualOption)
 
@@ -111,18 +98,16 @@ func TestCmdline(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		o    *Options
+		arch ArchFn
+		fns  []Fn
 		want []cmdlineEqualOpt
 		envv map[string]string
 		err  error
 	}{
 		{
 			name: "simple",
-			o: &Options{
-				QEMUPath: "qemu",
-				QEMUArch: GuestArchX8664,
-				Kernel:   "./foobar",
-			},
+			arch: GuestArchX8664,
+			fns:  []Fn{WithQEMUPath("qemu"), WithKernel("./foobar")},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
 				withArg("-nographic"),
@@ -131,31 +116,18 @@ func TestCmdline(t *testing.T) {
 		},
 		{
 			name: "kernel-args-fail",
-			o: &Options{
-				QEMUPath:   "qemu",
-				QEMUArch:   GuestArchX8664,
-				KernelArgs: "printk=ttyS0",
-			},
-			err: ErrKernelRequiredForArgs,
-		},
-		{
-			name: "device-kernel-args-fail",
-			o: &Options{
-				QEMUPath: "qemu",
-				QEMUArch: GuestArchX8664,
-				Devices:  []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
-			},
-			err: ErrKernelRequiredForArgs,
+			arch: GuestArchX8664,
+			fns:  []Fn{WithQEMUPath("qemu"), WithAppendKernel("printk=ttyS0")},
+			err:  ErrKernelRequiredForArgs,
 		},
 		{
 			name: "kernel-args-initrd-with-precedence-over-env",
-			o: &Options{
-				QEMUPath:   "qemu",
-				QEMUArch:   GuestArchX8664,
-				Kernel:     "./foobar",
-				Initramfs:  "./initrd",
-				KernelArgs: "printk=ttyS0",
-				Devices:    []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
+			arch: GuestArchX8664,
+			fns: []Fn{
+				WithQEMUPath("qemu"),
+				WithKernel("./foobar"),
+				WithInitramfs("./initrd"),
+				WithAppendKernel("printk=ttyS0"),
 			},
 			envv: map[string]string{
 				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
@@ -168,34 +140,17 @@ func TestCmdline(t *testing.T) {
 				withArg("-nographic"),
 				withArg("-kernel", "./foobar"),
 				withArg("-initrd", "./initrd"),
-				withArg("-append", "printk=ttyS0 earlyprintk=ttyS0"),
-			},
-		},
-		{
-			name: "device-kernel-args",
-			o: &Options{
-				QEMUPath: "qemu",
-				QEMUArch: GuestArchX8664,
-				Kernel:   "./foobar",
-				Devices:  []Device{ArbitraryKernelArgs{"earlyprintk=ttyS0"}},
-			},
-			want: []cmdlineEqualOpt{
-				withArgv0("qemu"),
-				withArg("-nographic"),
-				withArg("-kernel", "./foobar"),
-				withArg("-append", "earlyprintk=ttyS0"),
+				withArg("-append", "printk=ttyS0"),
 			},
 		},
 		{
 			name: "id-allocator",
-			o: &Options{
-				QEMUPath: "qemu",
-				QEMUArch: GuestArchX8664,
-				Kernel:   "./foobar",
-				Devices: []Device{
-					IDEBlockDevice{"./disk1"},
-					IDEBlockDevice{"./disk2"},
-				},
+			arch: GuestArchX8664,
+			fns: []Fn{
+				WithQEMUPath("qemu"),
+				WithKernel("./foobar"),
+				WithDevice(IDEBlockDevice{"./disk1"}),
+				WithDevice(IDEBlockDevice{"./disk2"}),
 			},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
@@ -211,7 +166,7 @@ func TestCmdline(t *testing.T) {
 		},
 		{
 			name: "env-config",
-			o:    &Options{},
+			arch: GuestArchUseEnvv,
 			envv: map[string]string{
 				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
 				"VMTEST_QEMU_ARCH": "x86_64",
@@ -236,7 +191,11 @@ func TestCmdline(t *testing.T) {
 					os.Setenv(key, "")
 				}
 			})
-			got, err := tt.o.Cmdline()
+			opts, err := OptionsFor(tt.arch, tt.fns...)
+			if err != nil {
+				t.Errorf("Options = %v, want nil", err)
+			}
+			got, err := opts.Cmdline()
 			if !errors.Is(err, tt.err) {
 				t.Errorf("Cmdline = %v, want %v", err, tt.err)
 			}
@@ -290,35 +249,20 @@ func TestStartVM(t *testing.T) {
 		t.Fatalf("error creating initramfs: %v", err)
 	}
 
-	r, w := io.Pipe()
-	opts := &Options{
-		// Using VMTEST_KERNEL && VMTEST_QEMU.
-		QEMUArch:     goarchToQEMUArch[guestGOARCH()],
-		Initramfs:    initrdPath,
-		SerialOutput: w,
-	}
-	if arch, err := opts.Arch(); err != nil {
-		t.Fatal(err)
-	} else if arch == "arm" {
-		opts.KernelArgs = "console=ttyAMA0"
-	} else if arch == "x86_64" {
-		opts.KernelArgs = "console=ttyS0 earlyprintk=ttyS0"
+	arch := goarchToQEMUArch[guestGOARCH()]
+	var kernelArgs string
+	switch arch {
+	case "arm":
+		kernelArgs = "console=ttyAMA0"
+	case "x86_64":
+		kernelArgs = "console=ttyS0 earlyprintk=ttyS0"
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s := bufio.NewScanner(r)
-		for s.Scan() {
-			t.Logf("vm: %s", replaceCtl(s.Bytes()))
-		}
-		if err := s.Err(); err != nil {
-			t.Errorf("Error reading serial from VM: %v", err)
-		}
-	}()
-
-	vm, err := opts.Start()
+	vm, err := Start(arch,
+		WithInitramfs(initrdPath),
+		WithAppendKernel(kernelArgs),
+		LogSerialByLine(PrintLineWithPrefix("vm", t.Logf)),
+	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
@@ -331,28 +275,24 @@ func TestStartVM(t *testing.T) {
 	if err := vm.Wait(); err != nil {
 		t.Fatalf("Error waiting for VM to exit: %v", err)
 	}
-	wg.Wait()
 }
 
 func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
 	var taskGotCanceled bool
 
-	opts := Options{
+	_, err := Start(GuestArchX8664,
 		// Some path that does not exist.
-		QEMUPath: filepath.Join(t.TempDir(), "qemu"),
-		QEMUArch: "x86_64",
-		Tasks: []Task{
-			// Make sure that the test does not time out
-			// forever -- context must get canceled.
-			func(ctx context.Context, n *Notifications) error {
-				<-ctx.Done()
-				taskGotCanceled = true
-				return nil
-			},
-		},
-	}
+		WithQEMUPath(filepath.Join(t.TempDir(), "qemu")),
+		// Make sure that the test does not time out
+		// forever -- context must get canceled.
+		WithTask(func(ctx context.Context, n *Notifications) error {
+			<-ctx.Done()
+			taskGotCanceled = true
+			return nil
+		}),
+	)
 
-	if _, err := opts.Start(); !errors.Is(err, unix.ENOENT) {
+	if !errors.Is(err, unix.ENOENT) {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
 
