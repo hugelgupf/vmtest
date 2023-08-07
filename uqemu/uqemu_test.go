@@ -46,8 +46,6 @@ func TestOverride(t *testing.T) {
 		}
 	})
 
-	env386 := golang.Default()
-	env386.GOARCH = "386"
 	for _, tt := range []struct {
 		name string
 		envv map[string]string
@@ -62,7 +60,7 @@ func TestOverride(t *testing.T) {
 				"VMTEST_GOARCH":             "amd64",
 			},
 			o: &Options{
-				Initramfs: uroot.Opts{Env: &env386},
+				Initramfs: uroot.Opts{Env: golang.Default(golang.WithGOARCH("386"))},
 			},
 			want: &qemu.Options{
 				Initramfs: "./foo.cpio",
