@@ -5,11 +5,7 @@
 package json2test
 
 import (
-	"encoding/json"
-	"io"
 	"time"
-
-	"github.com/u-root/u-root/pkg/uio"
 )
 
 // Action is a TestEvent action.
@@ -35,34 +31,4 @@ type TestEvent struct {
 	Test    string  `json:",omitempty"`
 	Elapsed float64 `json:",omitempty"`
 	Output  string  `json:",omitempty"`
-}
-
-// Handler is a callback for TestEvent events.
-type Handler interface {
-	Handle(e TestEvent)
-}
-
-// EventParser returns a Writer that parses events and hands each event to all
-// handlers h.
-func EventParser(h ...Handler) io.WriteCloser {
-	return uio.FullLineWriter(&eventParser{h})
-}
-
-type eventParser struct {
-	hs []Handler
-}
-
-func (ep *eventParser) OneLine(line []byte) {
-	// Poor man's JSON detector.
-	if len(line) == 0 || line[0] != '{' {
-		return
-	}
-
-	var e TestEvent
-	if err := json.Unmarshal(line, &e); err != nil {
-		return
-	}
-	for _, h := range ep.hs {
-		h.Handle(e)
-	}
 }

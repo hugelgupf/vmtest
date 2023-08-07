@@ -22,7 +22,10 @@ import (
 
 const individualTestTimeout = 25 * time.Second
 
-var coverProfile = flag.String("coverprofile", "", "Filename to write coverage data to")
+var (
+	coverProfile = flag.String("coverprofile", "", "Filename to write coverage data to")
+	testResults  = flag.String("testresults", "", "Filename to write test2json data to")
+)
 
 func walkTests(testRoot string, fn func(string, string)) error {
 	return filepath.Walk(testRoot, func(path string, info os.FileInfo, err error) error {
@@ -78,6 +81,12 @@ func runTest() error {
 	defer cleanup()
 	defer common.CollectKernelCoverage()
 
+	testResultsF, err := os.OpenFile(*testResults, os.O_CREATE|os.O_WRONLY|os.O_SYNC|os.O_APPEND, 0777)
+	if err != nil {
+		return err
+	}
+	defer testResultsF.Close()
+
 	walkTests("/testdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
 		ctx, cancel := context.WithTimeout(context.Background(), individualTestTimeout+500*time.Millisecond)
@@ -117,7 +126,7 @@ func runTest() error {
 		// the test, we may lose some of the last few lines.
 		j := exec.Command("test2json", "-t", "-p", pkgName)
 		j.Stdin = r
-		j.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		j.Stdout, cmd.Stderr = testResultsF, os.Stderr
 		if err := j.Start(); err != nil {
 			log.Printf("Failed to start test2json: %v", err)
 			return
