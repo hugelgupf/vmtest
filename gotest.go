@@ -16,7 +16,6 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/uio"
 	"github.com/u-root/u-root/pkg/uroot"
 	"golang.org/x/tools/go/packages"
 )
@@ -153,16 +152,13 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	o.BuildOpts.UinitCmd = "gouinit"
 
 	tc := json2test.NewTestCollector()
-	serial := []io.Writer{
+	serial := []io.WriteCloser{
 		// Collect JSON test events in tc.
 		json2test.EventParser(tc),
 		// Write non-JSON output to log.
-		jsonLessTestLineWriter(t, "serial"),
+		//jsonLessTestLineWriter(t, "serial"),
 	}
-	/*if o.QEMUOpts.SerialOutput != nil {
-		serial = append(serial, o.QEMUOpts.SerialOutput)
-	}*/
-	o.QEMUOpts = append(o.QEMUOpts, qemu.WithSerialOutput(uio.MultiWriteCloser(serial...)))
+	o.QEMUOpts = append(o.QEMUOpts, qemu.WithSerialOutput(serial...))
 	if len(vmCoverProfile) > 0 {
 		o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel("uroot.uinitargs=-coverprofile=/testdata/coverage.profile"))
 	}
