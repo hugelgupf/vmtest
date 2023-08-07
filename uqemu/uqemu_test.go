@@ -47,11 +47,12 @@ func TestOverride(t *testing.T) {
 	})
 
 	for _, tt := range []struct {
-		name string
-		envv map[string]string
-		o    *Options
-		want *qemu.Options
-		err  error
+		name          string
+		envv          map[string]string
+		o             *options
+		wantInitramfs string
+		wantArch      qemu.GuestArch
+		err           error
 	}{
 		{
 			name: "initramfs-override",
@@ -59,13 +60,11 @@ func TestOverride(t *testing.T) {
 				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
 				"VMTEST_GOARCH":             "amd64",
 			},
-			o: &Options{
-				Initramfs: uroot.Opts{Env: golang.Default(golang.WithGOARCH("386"))},
+			o: &options{
+				initramfs: uroot.Opts{Env: golang.Default(golang.WithGOARCH("386"))},
 			},
-			want: &qemu.Options{
-				Initramfs: "./foo.cpio",
-				QEMUArch:  "i386",
-			},
+			wantInitramfs: "./foo.cpio",
+			wantArch:      qemu.GuestArchI386,
 		},
 		{
 			name: "initramfs-override-and-goarch",
@@ -73,22 +72,18 @@ func TestOverride(t *testing.T) {
 				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
 				"VMTEST_GOARCH":             "386",
 			},
-			o: &Options{},
-			want: &qemu.Options{
-				Initramfs: "./foo.cpio",
-				QEMUArch:  "i386",
-			},
+			o:             &options{},
+			wantInitramfs: "./foo.cpio",
+			wantArch:      qemu.GuestArchI386,
 		},
 		{
 			name: "initramfs-override-and-runtime-goarch",
 			envv: map[string]string{
 				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
 			},
-			o: &Options{},
-			want: &qemu.Options{
-				Initramfs: "./foo.cpio",
-				QEMUArch:  "x86_64",
-			},
+			o:             &options{},
+			wantInitramfs: "./foo.cpio",
+			wantArch:      qemu.GuestArchX8664,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,12 +96,15 @@ func TestOverride(t *testing.T) {
 				}
 			})
 
-			got, err := tt.o.BuildInitramfs(&ulogtest.Logger{TB: t})
+			got, err := qemu.OptionsFor(tt.o)
 			if !errors.Is(err, tt.err) {
 				t.Errorf("Build = %v, want %v", err, tt.err)
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Build = %v, want %v", got, tt.want)
+			if got.Initramfs != tt.wantInitramfs {
+				t.Errorf("Build = %v, want %v", got.Initramfs, tt.wantInitramfs)
+			}
+			if arch := got.GuestArch(); arch != tt.wantArch {
+				t.Errorf("Build = arch %v, want arch %v", arch, tt.wantArch)
 			}
 		})
 	}
@@ -135,22 +133,6 @@ func TestStartVM(t *testing.T) {
 	case "amd64":
 		kernelArgs = "console=ttyS0 earlyprintk=ttyS0"
 	}
-	uopts := Options{
-		Initramfs: uroot.Opts{
-			InitCmd:  "init",
-			UinitCmd: "qemutest1",
-			TempDir:  tmp,
-			Commands: uroot.BusyBoxCmds(
-				"github.com/u-root/u-root/cmds/core/init",
-				"github.com/hugelgupf/vmtest/qemu/qemutest1",
-			),
-		},
-		InitrdPath: initrdPath,
-		VMOpts: qemu.Options{
-			SerialOutput: w,
-			KernelArgs:   kernelArgs,
-		},
-	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -165,7 +147,16 @@ func TestStartVM(t *testing.T) {
 		}
 	}()
 
-	vm, err := uopts.Start(logger)
+	initramfs := uroot.Opts{
+		InitCmd:  "init",
+		UinitCmd: "qemutest1",
+		TempDir:  tmp,
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/qemu/qemutest1",
+		),
+	}
+	vm, err := qemu.Start(WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w), qemu.WithAppendKernel(kernelArgs))
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
@@ -199,59 +190,53 @@ func TestTask(t *testing.T) {
 	var taskSawIAmHere bool
 	var vmExitErr error
 
-	uopts := Options{
-		Initramfs: uroot.Opts{
-			InitCmd:  "init",
-			UinitCmd: "qemutest1",
-			TempDir:  tmp,
-			Commands: uroot.BusyBoxCmds(
-				"github.com/u-root/u-root/cmds/core/init",
-				"github.com/hugelgupf/vmtest/qemu/qemutest1",
-			),
-		},
-		InitrdPath: initrdPath,
-		VMOpts: qemu.Options{
-			SerialOutput: w,
-			KernelArgs:   kernelArgs,
-			Tasks: []qemu.Task{
-				// Tests that we can wait for VM to start.
-				qemu.WaitVMStarted(func(ctx context.Context, n *qemu.Notifications) error {
-					s := bufio.NewScanner(r)
-					for s.Scan() {
-						line := string(replaceCtl(s.Bytes()))
-						if strings.Contains(line, "I AM HERE") {
-							taskSawIAmHere = true
-						}
-						t.Logf("vm: %s", line)
-					}
-					if err := s.Err(); err != nil {
-						return fmt.Errorf("error reading serial from VM: %v", err)
-					}
-					return nil
-				}),
-
-				// Make sure that the test does not time out
-				// forever -- context must get canceled.
-				func(ctx context.Context, n *qemu.Notifications) error {
-					<-ctx.Done()
-					taskGotCanceled = true
-					return nil
-				},
-
-				// Make sure that the VMExit event is always there.
-				func(ctx context.Context, n *qemu.Notifications) error {
-					err, ok := <-n.VMExited
-					if !ok {
-						return fmt.Errorf("failed to read from VM exit notifications")
-					}
-					vmExitErr = err
-					return nil
-				},
-			},
-		},
+	initramfs := uroot.Opts{
+		InitCmd:  "init",
+		UinitCmd: "qemutest1",
+		TempDir:  tmp,
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/qemu/qemutest1",
+		),
 	}
+	vm, err := qemu.Start(
+		WithUrootInitramfs(logger, initramfs, initrdPath),
+		qemu.WithSerialOutput(w),
+		qemu.WithAppendKernel(kernelArgs),
+		// Tests that we can wait for VM to start.
+		qemu.WithTask(qemu.WaitVMStarted(func(ctx context.Context, n *qemu.Notifications) error {
+			s := bufio.NewScanner(r)
+			for s.Scan() {
+				line := string(replaceCtl(s.Bytes()))
+				if strings.Contains(line, "I AM HERE") {
+					taskSawIAmHere = true
+				}
+				t.Logf("vm: %s", line)
+			}
+			if err := s.Err(); err != nil {
+				return fmt.Errorf("error reading serial from VM: %v", err)
+			}
+			return nil
+		})),
 
-	vm, err := uopts.Start(logger)
+		// Make sure that the test does not time out
+		// forever -- context must get canceled.
+		qemu.WithTask(func(ctx context.Context, n *qemu.Notifications) error {
+			<-ctx.Done()
+			taskGotCanceled = true
+			return nil
+		}),
+
+		// Make sure that the VMExit event is always there.
+		qemu.WithTask(func(ctx context.Context, n *qemu.Notifications) error {
+			err, ok := <-n.VMExited
+			if !ok {
+				return fmt.Errorf("failed to read from VM exit notifications")
+			}
+			vmExitErr = err
+			return nil
+		}),
+	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
 	}

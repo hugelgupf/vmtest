@@ -33,30 +33,6 @@ import (
 
 var ErrOutputFileSpecified = errors.New("initramfs output file must be left unspecified")
 
-type Options struct {
-	// Initramfs specifies an initramfs to be built and substituted into
-	// VM.Initramfs.
-	//
-	// Initramfs.OutputFile must be left unspecified.
-	//
-	// Initramfs.Env will be filled with default values of CGO_ENABLED=0
-	// and GOARCH=VMTEST_GOARCH if unspecified. It should be left
-	// unspecified.
-	Initramfs uroot.Opts
-
-	// InitrdPath is the path to write the initramfs in.
-	InitrdPath string
-
-	// VM specifies the guest to start.
-	//
-	// VM.QEMUArch (or VMTEST_QEMU_ARCH) has to match Initramfs.Env.GOARCH
-	// (or VMTEST_GOARCH) if both are specified.
-	//
-	// If VM.QEMUArch is unspecified, it will be derived from guest's
-	// GOARCH.
-	VMOpts qemu.Options
-}
-
 // GuestGOARCH returns the Guest GOARCH under test. Either VMTEST_GOARCH or
 // runtime.GOARCH.
 func GuestGOARCH() string {
@@ -74,46 +50,66 @@ var GOARCHToQEMUArch = map[string]qemu.GuestArch{
 	"arm64": qemu.GuestArchAarch64,
 }
 
-// BuildInitramfs builds the specified initramfs and returns VM options with
-// the created initramfs and corresponding QEMU architecture.
-func (o *Options) BuildInitramfs(logger ulog.Logger) (*qemu.Options, error) {
-	uopts := o.Initramfs
+type options struct {
+	initramfs  uroot.Opts
+	initrdPath string
+	logger     ulog.Logger
+}
+
+func (o *options) GOARCH() string {
+	if o.initramfs.Env != nil {
+		return o.initramfs.Env.GOARCH
+	}
+	return GuestGOARCH()
+}
+
+func (o *options) Arch() qemu.GuestArch {
+	return GOARCHToQEMUArch[o.GOARCH()]
+}
+
+func (o *options) Setup(alloc *qemu.IDAllocator, opts *qemu.Options) error {
+	uopts := o.initramfs
 	if uopts.Env == nil {
 		uopts.Env = golang.Default(golang.DisableCGO(), golang.WithGOARCH(GuestGOARCH()))
 	}
 
-	vmopts := o.VMOpts
 	if override := os.Getenv("VMTEST_INITRAMFS_OVERRIDE"); len(override) > 0 {
-		vmopts.Initramfs = override
+		opts.Initramfs = override
 	} else {
 		// We're going to fill this in ourselves.
-		if o.Initramfs.OutputFile != nil {
-			return nil, ErrOutputFileSpecified
+		if o.initramfs.OutputFile != nil {
+			return ErrOutputFileSpecified
 		}
 
-		initrdW, err := initramfs.CPIO.OpenWriter(logger, o.InitrdPath)
+		initrdW, err := initramfs.CPIO.OpenWriter(o.logger, o.initrdPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create initramfs writer: %w", err)
+			return fmt.Errorf("failed to create initramfs writer: %w", err)
 		}
 		uopts.OutputFile = initrdW
 
-		if err := uroot.CreateInitramfs(logger, uopts); err != nil {
-			return nil, fmt.Errorf("error creating initramfs: %w", err)
+		if err := uroot.CreateInitramfs(o.logger, uopts); err != nil {
+			return fmt.Errorf("error creating initramfs: %w", err)
 		}
-		vmopts.Initramfs = o.InitrdPath
+		opts.Initramfs = o.initrdPath
 	}
 
-	if _, err := vmopts.Arch(); errors.Is(err, qemu.ErrNoGuestArch) {
-		vmopts.QEMUArch = GOARCHToQEMUArch[uopts.Env.GOARCH]
-	}
-	return &vmopts, nil
+	return nil
 }
 
-// Start builds the initramfs and starts the VM guest.
-func (o *Options) Start(logger ulog.Logger) (*qemu.VM, error) {
-	vmopts, err := o.BuildInitramfs(logger)
-	if err != nil {
-		return nil, err
+// WithUrootInitramfs builds the specified initramfs and attaches it to the QEMU VM.
+//
+// When VMTEST_INITRAMFS_OVERRIDE is set, it foregoes building an initramfs and
+// uses the initramfs path in the env variable.
+//
+// The arch used to build the initramfs is derived by default from
+// VMTEST_GOARCH, or if unset, runtime.GOARCH (the host GOARCH).
+//
+// It also sets the QEMU architecture according to the Go architecture used to
+// build the initramfs.
+func WithUrootInitramfs(logger ulog.Logger, opts uroot.Opts, initrdPath string) qemu.ArchFn {
+	return &options{
+		logger:     logger,
+		initramfs:  opts,
+		initrdPath: initrdPath,
 	}
-	return vmopts.Start()
 }

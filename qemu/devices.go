@@ -5,7 +5,10 @@
 package qemu
 
 import (
+	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -39,6 +42,15 @@ type Device interface {
 
 	// KArgs returns arguments that must be passed to the kernel for this device, or nil.
 	KArgs() []string
+}
+
+// WithDevice adds a device to the VM.
+func WithDevice(d Device) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.AppendQEMU(d.Cmdline(opts.GuestArch(), alloc)...)
+		opts.AppendKernel(d.KArgs()...)
+		return nil
+	}
 }
 
 // Network is a Device that can connect multiple QEMU VMs to each other.
@@ -256,28 +268,55 @@ func (p P9Directory) KArgs() []string {
 
 // VirtioRandom is a Device that exposes a PCI random number generator to the
 // QEMU VM.
-type VirtioRandom struct{}
-
-func (VirtioRandom) Cmdline(GuestArch, *IDAllocator) []string {
-	return []string{"-device", "virtio-rng-pci"}
+func VirtioRandom(alloc *IDAllocator, opts *Options) error {
+	opts.AppendQEMU("-device", "virtio-rng-pci")
+	return nil
 }
-
-func (VirtioRandom) KArgs() []string { return nil }
 
 // ArbitraryArgs is a Device that allows users to add arbitrary arguments to
 // the QEMU command line.
-type ArbitraryArgs []string
-
-func (aa ArbitraryArgs) Cmdline(GuestArch, *IDAllocator) []string {
-	return aa
+func ArbitraryArgs(aa ...string) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.AppendQEMU(aa...)
+		return nil
+	}
 }
 
-func (ArbitraryArgs) KArgs() []string { return nil }
+func replaceCtl(str []byte) []byte {
+	for i, c := range str {
+		if c == 9 || c == 10 {
+		} else if c < 32 || c == 127 {
+			str[i] = '~'
+		}
+	}
+	return str
+}
 
-// ArbitraryKernelArgs is a Device that allows users to add kernel arbitrary
-// arguments to the QEMU command line.
-type ArbitraryKernelArgs []string
+// LogSerialByLine processes serial output from the guest one line at a time
+// and calls callback on each full line.
+func LogSerialByLine(callback func(line string)) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		r, w := io.Pipe()
+		opts.SerialOutput = w
+		opts.Tasks = append(opts.Tasks, WaitVMStarted(func(ctx context.Context, n *Notifications) error {
+			s := bufio.NewScanner(r)
+			for s.Scan() {
+				callback(string(replaceCtl(s.Bytes())))
+			}
+			if err := s.Err(); err != nil {
+				return fmt.Errorf("error reading serial from VM: %w", err)
+			}
+			return nil
+		}))
+		return nil
+	}
+}
 
-func (ArbitraryKernelArgs) Cmdline(GuestArch, *IDAllocator) []string { return nil }
-
-func (aa ArbitraryKernelArgs) KArgs() []string { return aa }
+// PrintLineWithPrefix returns a usable callback for LogSerialByLine that
+// prints a prefix and the line. Usable with any standard Go print function
+// like t.Logf or fmt.Printf.
+func PrintLineWithPrefix(prefix string, printer func(fmt string, arg ...any)) func(line string) {
+	return func(line string) {
+		printer("%s: %s", prefix, line)
+	}
+}
