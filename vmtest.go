@@ -79,7 +79,7 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	}
 
 	qopts = append(qopts,
-		qemu.WithSerialOutput(TestLineWriter(t, consoleOutputName)),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(consoleOutputName, t.Logf)),
 		// Tests use this cmdline arg to identify they are running inside a
 		// vmtest using SkipIfNotInVM
 		qemu.WithAppendKernel("uroot.vmtest"),
