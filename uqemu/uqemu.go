@@ -79,10 +79,7 @@ var GOARCHToQEMUArch = map[string]qemu.GuestArch{
 func (o *Options) BuildInitramfs(logger ulog.Logger) (*qemu.Options, error) {
 	uopts := o.Initramfs
 	if uopts.Env == nil {
-		env := golang.Default()
-		env.CgoEnabled = false
-		env.GOARCH = GuestGOARCH()
-		uopts.Env = &env
+		uopts.Env = golang.Default(golang.DisableCGO(), golang.WithGOARCH(GuestGOARCH()))
 	}
 
 	vmopts := o.VMOpts

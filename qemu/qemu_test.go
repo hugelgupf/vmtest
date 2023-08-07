@@ -273,12 +273,10 @@ func TestStartVM(t *testing.T) {
 		t.Fatalf("Failed to create initramfs writer: %v", err)
 	}
 
-	env := golang.Default()
-	env.CgoEnabled = false
-	env.GOARCH = guestGOARCH()
+	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(guestGOARCH()))
 
 	uopts := uroot.Opts{
-		Env:        &env,
+		Env:        env,
 		InitCmd:    "init",
 		UinitCmd:   "qemutest1",
 		OutputFile: initrdWriter,

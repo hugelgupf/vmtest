@@ -68,10 +68,8 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	}
 
 	// Set up u-root build options.
-	env := golang.Default()
-	env.CgoEnabled = false
-	env.GOARCH = uqemu.GuestGOARCH()
-	o.BuildOpts.Env = &env
+	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(uqemu.GuestGOARCH()))
+	o.BuildOpts.Env = env
 
 	// Statically build tests and add them to the temporary directory.
 	var tests []string
