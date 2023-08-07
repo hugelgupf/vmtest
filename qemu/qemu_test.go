@@ -149,8 +149,8 @@ func TestCmdline(t *testing.T) {
 			fns: []Fn{
 				WithQEMUPath("qemu"),
 				WithKernel("./foobar"),
-				WithDevice(IDEBlockDevice{"./disk1"}),
-				WithDevice(IDEBlockDevice{"./disk2"}),
+				IDEBlockDevice("./disk1"),
+				IDEBlockDevice("./disk2"),
 			},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),

@@ -83,8 +83,8 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		// Tests use this cmdline arg to identify they are running inside a
 		// vmtest using SkipIfNotInVM
 		qemu.WithAppendKernel("uroot.vmtest"),
-		qemu.VirtioRandom,
-		qemu.WithDevice(qemu.P9Directory{Dir: o.SharedDir}),
+		qemu.VirtioRandom(),
+		qemu.P9Directory(o.SharedDir, false, ""),
 	)
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.
