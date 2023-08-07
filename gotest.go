@@ -156,9 +156,13 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		// Collect JSON test events in tc.
 		json2test.EventParser(tc),
 		// Write non-JSON output to log.
-		//jsonLessTestLineWriter(t, "serial"),
+		jsonLessTestLineWriter(t, "serial"),
 	}
-	o.QEMUOpts = append(o.QEMUOpts, qemu.WithSerialOutput(serial...))
+	o.QEMUOpts = append(o.QEMUOpts, func(alloc *qemu.IDAllocator, opts *qemu.Options) error {
+		// HACK HACK HACK: replace serial output altogether instead of appending to it!
+		opts.SerialOutput = serial
+		return nil
+	})
 	if len(vmCoverProfile) > 0 {
 		o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel("uroot.uinitargs=-coverprofile=/testdata/coverage.profile"))
 	}
