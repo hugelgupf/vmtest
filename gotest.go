@@ -5,11 +5,14 @@
 package vmtest
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
@@ -151,21 +154,12 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	// and run the tests from there.
 	o.BuildOpts.UinitCmd = "gouinit"
 
-	tc := json2test.NewTestCollector()
-	serial := []io.WriteCloser{
-		// Collect JSON test events in tc.
-		json2test.EventParser(tc),
-		// Write non-JSON output to log.
-		jsonLessTestLineWriter(t, "serial"),
-	}
-	o.QEMUOpts = append(o.QEMUOpts, func(alloc *qemu.IDAllocator, opts *qemu.Options) error {
-		// HACK HACK HACK: replace serial output altogether instead of appending to it!
-		opts.SerialOutput = serial
-		return nil
-	})
+	var uinitArgs []string
 	if len(vmCoverProfile) > 0 {
-		o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel("uroot.uinitargs=-coverprofile=/testdata/coverage.profile"))
+		uinitArgs = append(uinitArgs, "-coverprofile=/testdata/coverage.profile")
 	}
+	uinitArgs = append(uinitArgs, "-testresults=/testdata/results.json")
+	o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel(fmt.Sprintf("uroot.uinitargs=\"%s\"", strings.Join(uinitArgs, " "))))
 
 	// Create the initramfs and start the VM.
 	vm := startVMTestVM(t, o)
@@ -199,6 +193,25 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		if err := cov.Close(); err != nil {
 			t.Fatalf("Could not close coverage.profile: %v", err)
 		}
+	}
+
+	// Parse JSON test results from VM.
+	testResults, err := os.Open(filepath.Join(o.SharedDir, "results.json"))
+	if err != nil {
+		t.Fatalf("Go test result JSON file could not be opened: %v", err)
+	}
+
+	tc := json2test.NewTestCollector()
+	s := bufio.NewScanner(testResults)
+	for s.Scan() {
+		var e json2test.TestEvent
+		if err := json.Unmarshal(s.Bytes(), &e); err != nil {
+			t.Fatalf("Failed to parse test result JSON: %v", err)
+		}
+		tc.Handle(e)
+	}
+	if err := s.Err(); err != nil {
+		t.Fatalf("Encountered error reading test result JSON file: %v", err)
 	}
 
 	// TODO: check that tc.Tests == tests
