@@ -24,14 +24,13 @@ type VMOptions struct {
 	// If name is left empty, t.Name() will be used.
 	Name string
 
-	// QEMUOpts are QEMU VM options for the test.
+	// GuestArch is a setup function that sets the architecture.
 	//
-	// This is where kernel, initramfs, and devices are set up.
-	//
-	// If the kernel is not set, VMTEST_KERNEL will be used.
-	// If the initramfs is not set, VMTEST_INITRAMFS will be used.
-	// Default serial console output to t.Logf is set up in StartVM.
-	QEMUOpts qemu.Options
+	// The default is qemu.GuestArchUseEnvv, which will use VMTEST_QEMU_ARCH.
+	GuestArch qemu.ArchFn
+
+	// QEMUOpts are options to the QEMU VM.
+	QEMUOpts []qemu.Fn
 
 	// SharedDir is the temporary directory exposed to the QEMU VM.
 	//
@@ -66,33 +65,30 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	if o.SharedDir == "" {
 		o.SharedDir = t.TempDir()
 	}
-
-	if o.QEMUOpts.SerialOutput == nil {
-		o.QEMUOpts.SerialOutput = TestLineWriter(t, consoleOutputName)
+	arch := o.GuestArch
+	if arch == nil {
+		arch = qemu.GuestArchUseEnvv
 	}
 
-	// Make sure console gets to the logs.
-	arch, err := o.QEMUOpts.Arch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	switch arch {
-	case "x86_64":
-		o.QEMUOpts.AppendKernel("console=ttyS0 earlyprintk=ttyS0")
-	case "arm":
-		o.QEMUOpts.AppendKernel("console=ttyAMA0")
+	var qopts []qemu.Fn
+	switch arch.Arch() {
+	case qemu.GuestArchX8664:
+		qopts = append(qopts, qemu.WithAppendKernel("console=ttyS0 earlyprintk=ttyS0"))
+	case qemu.GuestArchArm:
+		qopts = append(qopts, qemu.WithAppendKernel("console=ttyAMA0"))
 	}
 
-	// Tests use this cmdline arg to identify they are running inside a
-	// vmtest using SkipIfNotInVM
-	o.QEMUOpts.AppendKernel("uroot.vmtest")
-
-	o.QEMUOpts.Devices = append(o.QEMUOpts.Devices,
-		qemu.VirtioRandom{},
-		qemu.P9Directory{Dir: o.SharedDir},
+	qopts = append(qopts,
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(consoleOutputName, t.Logf)),
+		// Tests use this cmdline arg to identify they are running inside a
+		// vmtest using SkipIfNotInVM
+		qemu.WithAppendKernel("uroot.vmtest"),
+		qemu.VirtioRandom,
+		qemu.WithDevice(qemu.P9Directory{Dir: o.SharedDir}),
 	)
 
-	vm, err := o.QEMUOpts.Start()
+	// Prepend our default options so user-supplied o.QEMUOpts supersede.
+	vm, err := qemu.Start(arch, append(qopts, o.QEMUOpts...)...)
 	if err != nil {
 		t.Fatalf("Failed to start QEMU VM %s: %v", o.Name, err)
 	}
