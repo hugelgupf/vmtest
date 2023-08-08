@@ -72,8 +72,15 @@ func TempDir(t testing.TB) string {
 					t.Logf("Keeping temp dir due to test failure: %s", rootDir)
 				} else if *keepTempDir {
 					t.Logf("Keeping temp dir as requested by --keep-temp-dir: %s", rootDir)
-				} else if err := os.RemoveAll(rootDir); err != nil {
-					t.Errorf("Failed to remove temporary directory %s: %v", rootDir, err)
+				} else {
+					if err := os.RemoveAll(rootDir); err != nil {
+						t.Errorf("Failed to remove temporary directory %s: %v", rootDir, err)
+					}
+					// Delete map keys for repeated test cases.
+					mu.Lock()
+					delete(tempDirs, t.Name())
+					delete(tempIdx, t.Name())
+					mu.Unlock()
 				}
 			})
 		}
