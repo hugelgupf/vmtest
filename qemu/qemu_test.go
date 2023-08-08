@@ -9,9 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
@@ -274,6 +277,37 @@ func TestStartVM(t *testing.T) {
 
 	if err := vm.Wait(); err != nil {
 		t.Fatalf("Error waiting for VM to exit: %v", err)
+	}
+}
+
+func ClearQEMUArgs() Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.QEMUArgs = nil
+		return nil
+	}
+}
+
+func TestQEMUTimesOut(t *testing.T) {
+	vm, err := Start(GuestArchX8664,
+		WithQEMUPath("sleep 30"),
+		WithVMTimeout(5*time.Second),
+		ClearQEMUArgs(),
+		// In case the user is calling this test with env vars set.
+		WithKernel(""),
+		WithInitramfs(""),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start 'VM': %v", err)
+	}
+	t.Logf("cmdline: %v", vm.CmdlineQuoted())
+
+	var execErr *exec.ExitError
+	err = vm.Wait()
+	if !errors.As(err, &execErr) {
+		t.Errorf("Failed to wait for VM: %v", err)
+	}
+	if execErr.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+		t.Errorf("VM exited with %v, expected SIGKILL", err)
 	}
 }
 
