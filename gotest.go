@@ -54,7 +54,7 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 // via the UROOT_QEMU_COVERPROFILE env var.
 //
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
-//   - TODO: specify test timeout -- individual + total.
+//   - TODO: specify timeouts for individual tests.
 //   - TODO: check each test's exit status.
 func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
