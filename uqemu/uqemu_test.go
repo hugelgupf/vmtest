@@ -146,7 +146,7 @@ func TestStartVM(t *testing.T) {
 		TempDir:  tmp,
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/qemutest1",
+			"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
 		),
 	}
 	vm, err := qemu.Start(WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
@@ -182,7 +182,7 @@ func TestTask(t *testing.T) {
 		TempDir:  tmp,
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/qemutest1",
+			"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
 		),
 	}
 	vm, err := qemu.Start(
