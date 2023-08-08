@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hugelgupf/vmtest/testtmp"
 )
 
 // RunCmdsInVM starts a VM and runs each command provided in testCmds in a
@@ -29,7 +31,7 @@ func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 		o = &UrootFSOptions{}
 	}
 	if o.SharedDir == "" {
-		o.SharedDir = t.TempDir()
+		o.SharedDir = testtmp.TempDir(t)
 	}
 
 	// Generate Elvish shell script of test commands in o.SharedDir.

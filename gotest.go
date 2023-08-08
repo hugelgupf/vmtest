@@ -17,6 +17,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -62,7 +63,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		o = &UrootFSOptions{}
 	}
 	if o.SharedDir == "" {
-		o.SharedDir = t.TempDir()
+		o.SharedDir = testtmp.TempDir(t)
 	}
 
 	vmCoverProfile, ok := os.LookupEnv("UROOT_QEMU_COVERPROFILE")
