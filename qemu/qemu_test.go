@@ -110,7 +110,7 @@ func TestCmdline(t *testing.T) {
 		{
 			name: "simple",
 			arch: GuestArchX8664,
-			fns:  []Fn{WithQEMUPath("qemu"), WithKernel("./foobar")},
+			fns:  []Fn{WithQEMUCommand("qemu"), WithKernel("./foobar")},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
 				withArg("-nographic"),
@@ -120,14 +120,14 @@ func TestCmdline(t *testing.T) {
 		{
 			name: "kernel-args-fail",
 			arch: GuestArchX8664,
-			fns:  []Fn{WithQEMUPath("qemu"), WithAppendKernel("printk=ttyS0")},
+			fns:  []Fn{WithQEMUCommand("qemu"), WithAppendKernel("printk=ttyS0")},
 			err:  ErrKernelRequiredForArgs,
 		},
 		{
 			name: "kernel-args-initrd-with-precedence-over-env",
 			arch: GuestArchX8664,
 			fns: []Fn{
-				WithQEMUPath("qemu"),
+				WithQEMUCommand("qemu"),
 				WithKernel("./foobar"),
 				WithInitramfs("./initrd"),
 				WithAppendKernel("printk=ttyS0"),
@@ -150,7 +150,7 @@ func TestCmdline(t *testing.T) {
 			name: "id-allocator",
 			arch: GuestArchX8664,
 			fns: []Fn{
-				WithQEMUPath("qemu"),
+				WithQEMUCommand("qemu"),
 				WithKernel("./foobar"),
 				IDEBlockDevice("./disk1"),
 				IDEBlockDevice("./disk2"),
@@ -289,7 +289,7 @@ func ClearQEMUArgs() Fn {
 
 func TestSubprocessTimesOut(t *testing.T) {
 	vm, err := Start(GuestArchX8664,
-		WithQEMUPath("sleep 30"),
+		WithQEMUCommand("sleep 30"),
 		WithVMTimeout(5*time.Second),
 		ClearQEMUArgs(),
 		// In case the user is calling this test with env vars set.
@@ -313,7 +313,7 @@ func TestSubprocessTimesOut(t *testing.T) {
 
 func TestSubprocessKilled(t *testing.T) {
 	vm, err := Start(GuestArchX8664,
-		WithQEMUPath("sleep 60"),
+		WithQEMUCommand("sleep 60"),
 		ClearQEMUArgs(),
 		// In case the user is calling this test with env vars set.
 		WithKernel(""),
@@ -342,7 +342,7 @@ func TestTaskCanceledVMExits(t *testing.T) {
 	var taskGotCanceled bool
 
 	vm, err := Start(GuestArchX8664,
-		WithQEMUPath("sleep 3"),
+		WithQEMUCommand("sleep 3"),
 		ClearQEMUArgs(),
 		// In case the user is calling this test with env vars set.
 		WithKernel(""),
@@ -374,7 +374,7 @@ func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
 
 	_, err := Start(GuestArchX8664,
 		// Some path that does not exist.
-		WithQEMUPath(filepath.Join(t.TempDir(), "qemu")),
+		WithQEMUCommand(filepath.Join(t.TempDir(), "qemu")),
 		// Make sure that the test does not time out
 		// forever -- context must get canceled.
 		WithTask(func(ctx context.Context, n *Notifications) error {

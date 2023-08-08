@@ -13,7 +13,7 @@
 //
 // Other environment variables:
 //
-//	VMTEST_QEMU_ARCH (used when Options.QEMUArch is empty)
+//	VMTEST_QEMU_ARCH (used when GuestArch is empty or GuestArchUseEnvv is set)
 //	VMTEST_KERNEL (used when Options.Kernel is empty)
 //	VMTEST_INITRAMFS (used when Options.Initramfs is empty)
 package qemu
@@ -36,7 +36,7 @@ import (
 // ErrKernelRequiredForArgs is returned when KernelArgs is populated but Kernel is empty.
 var ErrKernelRequiredForArgs = errors.New("KernelArgs can only be used when Kernel is also specified due to how QEMU bootloader works")
 
-// ErrNoGuestArch is returned when neither Options.QEMUPath nor VMTEST_QEMU_ARCH are set.
+// ErrNoGuestArch is returned when neither GuestArch nor VMTEST_QEMU_ARCH are set.
 var ErrNoGuestArch = errors.New("no QEMU guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
 
 // ErrUnsupportedGuestArch is returned when an unsupported guest architecture value is used.
@@ -90,13 +90,14 @@ type ArchFn interface {
 	Arch() GuestArch
 }
 
-// WithQEMUPath sets the path to the QEMU binary.
+// WithQEMUCommand sets a QEMU command. It's expected to provide a QEMU binary
+// and optionally some arguments.
 //
-// path may contain additional QEMU args, such as "qemu -enable-kvm -m 1G".
+// cmd may contain additional QEMU args, such as "qemu-system-x86_64 -enable-kvm -m 1G".
 // They will be appended to the command-line.
-func WithQEMUPath(path string) Fn {
+func WithQEMUCommand(cmd string) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
-		opts.QEMUPath = path
+		opts.QEMUCommand = cmd
 		return nil
 	}
 }
@@ -160,9 +161,9 @@ func WithTask(t ...Task) Fn {
 func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
 	alloc := NewIDAllocator()
 	o := &Options{
-		QEMUPath:  os.Getenv("VMTEST_QEMU"),
-		Kernel:    os.Getenv("VMTEST_KERNEL"),
-		Initramfs: os.Getenv("VMTEST_INITRAMFS"),
+		QEMUCommand: os.Getenv("VMTEST_QEMU"),
+		Kernel:      os.Getenv("VMTEST_KERNEL"),
+		Initramfs:   os.Getenv("VMTEST_INITRAMFS"),
 		// Disable graphics by default.
 		QEMUArgs: []string{"-nographic"},
 	}
@@ -210,11 +211,10 @@ type Options struct {
 	// If empty, VMTEST_QEMU_ARCH env var will be used.
 	arch GuestArch
 
-	// QEMUPath is the path to the QEMU binary to invoke.
+	// QEMUCommand is QEMU binary to invoke and some additonal args.
 	//
 	// If empty, the VMTEST_QEMU env var will be used.
-	// If the env var is unspecified, "qemu" is the default.
-	QEMUPath string
+	QEMUCommand string
 
 	// Path to the kernel to boot.
 	//
@@ -388,7 +388,7 @@ func (o *Options) Cmdline() ([]string, error) {
 	var args []string
 
 	// QEMU binary + initial args (may have been supplied via VMTEST_QEMU).
-	args = append(args, strings.Fields(o.QEMUPath)...)
+	args = append(args, strings.Fields(o.QEMUCommand)...)
 
 	// Add user / configured args.
 	args = append(args, o.QEMUArgs...)
