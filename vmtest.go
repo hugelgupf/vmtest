@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/testtmp"
 )
 
 // VMOptions are QEMU VM integration test options.
@@ -28,9 +27,9 @@ type VMOptions struct {
 	// QEMUOpts are options to the QEMU VM.
 	QEMUOpts []qemu.Fn
 
-	// SharedDir is the temporary directory exposed to the QEMU VM.
+	// SharedDir is a directory shared with the QEMU VM using 9P.
 	//
-	// If none is set, testtmp.TempDir will be used.
+	// If none is set, no directory is shared with the guest.
 	SharedDir string
 }
 
@@ -58,9 +57,6 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		consoleOutputName = fmt.Sprintf("%s serial", o.Name)
 	}
 
-	if o.SharedDir == "" {
-		o.SharedDir = testtmp.TempDir(t)
-	}
 	arch := o.GuestArch
 	if arch == nil {
 		arch = qemu.GuestArchUseEnvv
@@ -80,8 +76,10 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		// vmtest using SkipIfNotInVM
 		qemu.WithAppendKernel("uroot.vmtest"),
 		qemu.VirtioRandom(),
-		qemu.P9Directory(o.SharedDir, false, ""),
 	)
+	if o.SharedDir != "" {
+		qopts = append(qopts, qemu.P9Directory(o.SharedDir, false, ""))
+	}
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.
 	vm, err := qemu.Start(arch, append(qopts, o.QEMUOpts...)...)
