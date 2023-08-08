@@ -1,20 +1,16 @@
-// Copyright 2022 the u-root Authors. All rights reserved
+// Copyright 2023 the u-root Authors. All rights reserved
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package vmtest
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-)
-
-var (
-	keepSharedDir = flag.Bool("keep-shared-dir", false, "Keep shared directory after test, even if test passed")
+	"github.com/hugelgupf/vmtest/testtmp"
 )
 
 // VMOptions are QEMU VM integration test options.
@@ -34,7 +30,7 @@ type VMOptions struct {
 
 	// SharedDir is the temporary directory exposed to the QEMU VM.
 	//
-	// If none is set, t.TempDir will be used.
+	// If none is set, testtmp.TempDir will be used.
 	SharedDir string
 }
 
@@ -63,7 +59,7 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	}
 
 	if o.SharedDir == "" {
-		o.SharedDir = t.TempDir()
+		o.SharedDir = testtmp.TempDir(t)
 	}
 	arch := o.GuestArch
 	if arch == nil {
@@ -95,14 +91,6 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 
 	t.Cleanup(func() {
 		t.Logf("QEMU command line to reproduce %s:\n%s", o.Name, vm.CmdlineQuoted())
-		if t.Failed() {
-			t.Log("Keeping temp dir: ", o.SharedDir)
-		} else if !*keepSharedDir {
-			if err := os.RemoveAll(o.SharedDir); err != nil {
-				t.Logf("failed to remove temporary directory %s: %v", o.SharedDir, err)
-			}
-		}
-
 	})
 	return vm
 }

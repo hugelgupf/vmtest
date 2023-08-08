@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -90,13 +91,9 @@ func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.ArchFn {
 		initramfs.DefaultShell = "elvish"
 	}
 	if len(initramfs.TempDir) == 0 {
-		tempDir := filepath.Join(t.TempDir(), "initramfs-tempdir")
-		if err := os.Mkdir(tempDir, 0755); err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		initramfs.TempDir = tempDir
+		initramfs.TempDir = testtmp.TempDir(t)
 	}
-	return uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio"))
+	return uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(testtmp.TempDir(t), "initramfs.cpio"))
 }
 
 // Tests are run from u-root/integration/{gotests,generic-tests}/
