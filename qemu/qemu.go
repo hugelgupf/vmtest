@@ -141,11 +141,12 @@ func WithVMTimeout(timeout time.Duration) Fn {
 	}
 }
 
-// WithTask adds a task running alongside the guest.
+// WithTask adds a goroutine running alongside the guest.
 //
-// A task is a goroutine right before the guest is started.
-// A task is expected to exit either when ctx is canceled or when the
-// QEMU subprocess exits. When the context is canceled, the QEMU subprocess is
+// Task goroutines are started right before the guest is started.
+//
+// A task is expected to exit either when ctx is canceled or when the QEMU
+// subprocess exits. When the context is canceled, the QEMU subprocess is
 // expected to exit as well, and when the QEMU subprocess exits, the context is
 // canceled.
 func WithTask(t ...Task) Fn {
@@ -231,9 +232,10 @@ type Options struct {
 	// Where to send serial output.
 	SerialOutput []io.WriteCloser
 
-	// Tasks are tasks running alongside the guest.
+	// Tasks are goroutines running alongside the guest.
 	//
-	// A task is a goroutine right before the guest is started.
+	// Task goroutines are started right before the guest is started.
+	//
 	// A task is expected to exit either when ctx is canceled or when the
 	// QEMU subprocess exits. When the context is canceled, the QEMU
 	// subprocess is expected to exit as well, and when the QEMU subprocess
