@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
 )
 
@@ -25,6 +26,26 @@ import (
 //   - TODO: timeouts for individual individual commands.
 //   - TODO: It should check their exit status. Hahaha.
 func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
+	vm := StartVMAndRunCmds(t, testCmds, o)
+
+	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
+		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Errorf("VM exited with %v", err)
+	}
+}
+
+// StartVMAndRunCmds starts a VM and runs each command provided in testCmds in
+// a shell in the VM. If the commands return, the VM will be shutdown.
+//
+// The VM can be configured with o. Env var configuration and defaults are as
+// in StartUrootFSVM.
+//
+// Underneath, this generates an Elvish script with these commands. The script
+// is shared with the VM and run from a special init.
+func StartVMAndRunCmds(t *testing.T, testCmds []string, o *UrootFSOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
 	if o == nil {
@@ -32,6 +53,9 @@ func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 	}
 	if o.SharedDir == "" {
 		o.SharedDir = testtmp.TempDir(t)
+	}
+	if len(o.BuildOpts.UinitCmd) > 0 {
+		t.Fatalf("RunCmdsInVM must be able to specify a uinit; one was already specified by caller: %s", o.BuildOpts.UinitCmd)
 	}
 
 	// Generate Elvish shell script of test commands in o.SharedDir.
@@ -43,19 +67,8 @@ func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 		}
 	}
 
-	if len(o.BuildOpts.UinitCmd) > 0 {
-		t.Fatalf("RunCmdsInVM must be able to specify a uinit; one was already specified by caller: %s", o.BuildOpts.UinitCmd)
-	}
 	o.BuildOpts.AddBusyBoxCommands("github.com/hugelgupf/vmtest/vminit/shelluinit")
 	o.BuildOpts.UinitCmd = "shelluinit"
 
-	vm := startVMTestVM(t, o)
-
-	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
-		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
-	}
-
-	if err := vm.Wait(); err != nil {
-		t.Errorf("VM exited with %v", err)
-	}
+	return startVMTestVM(t, o)
 }
