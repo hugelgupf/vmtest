@@ -360,6 +360,7 @@ func TestTaskCanceledVMExits(t *testing.T) {
 		t.Error("Error: Task did not get canceled")
 	}
 }
+
 func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
 	var taskGotCanceled bool
 

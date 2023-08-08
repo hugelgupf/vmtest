@@ -217,12 +217,22 @@ func (c ptmClosedErrorConverter) Read(p []byte) (int, error) {
 	return n, err
 }
 
+var ErrEventChannelMissingDoneEvent = errors.New("never received the final event channel event (did you call Close() on the guest event channel emitter?)")
+
 // EventChannel adds a virtio-serial-backed channel between host and guest to
 // send JSON events (T).
 //
 // Use guest.SerialEventChannel with the same name to get access to the emitter
 // in the guest.
-func EventChannel[T any](name string, callback func(T)) Fn {
+//
+// Guest events will be sent on the supplied channel. The channel will be
+// closed when the guest exits or indicates that no more events are coming. If
+// the guest exits without indicating that no more events are coming, the VM
+// exit will return an error. (guest.SerialEventChannel.Close emits this "done"
+// event.)
+//
+// If the channel is blocking, guest event processing is blocked as well.
+func EventChannel[T any](name string, events chan<- T) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
 		pipeID := alloc.ID("pipe")
 
@@ -249,17 +259,22 @@ func EventChannel[T any](name string, callback func(T)) Fn {
 			err := eventchannel.ProcessJSONByLine[eventchannel.Event[T]](ptmClosedErrorConverter{ptm}, func(c eventchannel.Event[T]) {
 				switch c.GuestAction {
 				case eventchannel.ActionGuestEvent:
-					callback(c.Actual)
+					events <- c.Actual
 
 				case eventchannel.ActionDone:
+					close(events)
 					gotDone = true
 				}
 			})
 			if err != nil {
+				if !gotDone {
+					close(events)
+				}
 				return err
 			}
 			if !gotDone {
-				return fmt.Errorf("never received the final event channel event (did you call Close() on the guest event channel emitter?)")
+				close(events)
+				return ErrEventChannelMissingDoneEvent
 			}
 			return nil
 		}))

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/test/eventemitter/event"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -245,4 +246,90 @@ func TestTask(t *testing.T) {
 	if !taskSawIAmHere {
 		t.Error("Error: Serial console task didn't see I AM HERE")
 	}
+}
+
+func TestEventChannel(t *testing.T) {
+	logger := &ulogtest.Logger{TB: t}
+
+	initramfs := uroot.Opts{
+		InitCmd:  "init",
+		UinitCmd: "eventemitter",
+		TempDir:  t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/qemu/test/eventemitter",
+		),
+	}
+	events := make(chan event.Event)
+	vm, err := qemu.Start(
+		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.EventChannel[event.Event]("test", events),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	// Expect event IDs 0 through 999, in order.
+	i := 0
+	for e := range events {
+		if e.ID != i {
+			t.Errorf("The %dth event has ID %d, want %d", i+1, e.ID, i)
+		}
+		i++
+	}
+	if i != 1000 {
+		t.Errorf("Expected last event ID to be 1000, got %d", i)
+	}
+
+	if _, err := vm.Console.ExpectString("TEST PASSED"); err != nil {
+		t.Errorf("Error expecting TEST PASSED: %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Fatalf("Error waiting for VM to exit: %v", err)
+	}
+}
+
+func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
+	logger := &ulogtest.Logger{TB: t}
+
+	initramfs := uroot.Opts{
+		InitCmd:  "init",
+		UinitCmd: "eventemitter",
+		// Instruct eventemitter not to close the event channel.
+		UinitArgs: []string{"-skip-close"},
+		TempDir:   t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/qemu/test/eventemitter",
+		),
+	}
+	events := make(chan event.Event)
+	vm, err := qemu.Start(
+		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.EventChannel[event.Event]("test", events),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		// Drain the events.
+		for range events {
+		}
+		wg.Done()
+	}()
+
+	want := qemu.ErrEventChannelMissingDoneEvent
+	if err := vm.Wait(); !errors.Is(err, want) {
+		t.Fatalf("VM.Wait =  %v, want %v", err, want)
+	}
+	// Ensure that event channel is closed even in error case.
+	wg.Wait()
 }
