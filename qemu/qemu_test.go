@@ -287,7 +287,7 @@ func ClearQEMUArgs() Fn {
 	}
 }
 
-func TestQEMUTimesOut(t *testing.T) {
+func TestSubprocessTimesOut(t *testing.T) {
 	vm, err := Start(GuestArchX8664,
 		WithQEMUPath("sleep 30"),
 		WithVMTimeout(5*time.Second),
@@ -311,6 +311,64 @@ func TestQEMUTimesOut(t *testing.T) {
 	}
 }
 
+func TestSubprocessKilled(t *testing.T) {
+	vm, err := Start(GuestArchX8664,
+		WithQEMUPath("sleep 60"),
+		ClearQEMUArgs(),
+		// In case the user is calling this test with env vars set.
+		WithKernel(""),
+		WithInitramfs(""),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start 'VM': %v", err)
+	}
+	t.Logf("cmdline: %v", vm.CmdlineQuoted())
+
+	if err := vm.Kill(); err != nil {
+		t.Fatalf("Could not kill running subprocess: %v", err)
+	}
+
+	var execErr *exec.ExitError
+	err = vm.Wait()
+	if !errors.As(err, &execErr) {
+		t.Errorf("Failed to wait for VM: %v", err)
+	}
+	if execErr.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+		t.Errorf("VM exited with %v, expected SIGKILL", err)
+	}
+}
+
+func TestTaskCanceledVMExits(t *testing.T) {
+	var taskGotCanceled bool
+
+	vm, err := Start(GuestArchX8664,
+		WithQEMUPath("sleep 3"),
+		ClearQEMUArgs(),
+		// In case the user is calling this test with env vars set.
+		WithKernel(""),
+		WithInitramfs(""),
+
+		// Make sure that the test does not time out
+		// forever -- context must get canceled.
+		WithTask(func(ctx context.Context, n *Notifications) error {
+			<-ctx.Done()
+			taskGotCanceled = true
+			return nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Subprocess failed to start: %v", err)
+	}
+	t.Logf("cmdline: %v", vm.CmdlineQuoted())
+
+	if err := vm.Wait(); err != nil {
+		t.Fatalf("Subprocess exited with: %v", err)
+	}
+
+	if !taskGotCanceled {
+		t.Error("Error: Task did not get canceled")
+	}
+}
 func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
 	var taskGotCanceled bool
 
