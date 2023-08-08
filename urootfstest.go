@@ -58,8 +58,9 @@ type UrootFSOptions struct {
 // StartUrootFSVM creates a u-root initramfs with the given options and starts
 // a QEMU VM with the created u-root file system.
 //
-// It uses a caller-supplied kernel, or if not set, one supplied by the
-// VMTEST_KERNEL env var.
+// If left unfilled, default VMOptions use VMTEST_QEMU, VMTEST_KERNEL, and
+// VMTEST_INITRAMFS_OVERRIDE to fill configuration as documented in the uqemu
+// package.
 //
 // If VMTEST_INITRAMFS_OVERRIDE is set, that initramfs overrides the options
 // set in this test. (This can be used to, for example, run the same test with
