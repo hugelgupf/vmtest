@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/Netflix/go-expect"
 	"golang.org/x/exp/slices"
@@ -132,6 +133,14 @@ func WithSerialOutput(w ...io.WriteCloser) Fn {
 	}
 }
 
+// WithVMTimeout is a timeout for the QEMU guest subprocess.
+func WithVMTimeout(timeout time.Duration) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.VMTimeout = timeout
+		return nil
+	}
+}
+
 // WithTask adds a task running alongside the guest.
 //
 // A task is a goroutine right before the guest is started.
@@ -171,12 +180,23 @@ func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
 }
 
 // Start starts a VM with the given configuration.
+//
+// SerialOutput will be relayed only if VM.Wait is also called some time after
+// the VM starts.
 func Start(arch ArchFn, fns ...Fn) (*VM, error) {
+	return StartContext(context.Background(), arch, fns...)
+}
+
+// StartContext starts a VM with the given configuration and with the given context.
+//
+// When the context is done, the QEMU subprocess will be killed and all
+// associated goroutines cleaned up as long as VM.Wait() is called.
+func StartContext(ctx context.Context, arch ArchFn, fns ...Fn) (*VM, error) {
 	o, err := OptionsFor(arch, fns...)
 	if err != nil {
 		return nil, err
 	}
-	return o.Start()
+	return o.Start(ctx)
 }
 
 // Options are VM start-up parameters.
@@ -220,6 +240,9 @@ type Options struct {
 
 	// Additional QEMU cmdline arguments.
 	QEMUArgs []string
+
+	// VMTimeout is a timeout for the QEMU subprocess.
+	VMTimeout time.Duration
 }
 
 // Task is a task running alongside the guest.
@@ -267,7 +290,7 @@ func (o *Options) GuestArch() GuestArch {
 }
 
 // Start starts a QEMU VM.
-func (o *Options) Start() (*VM, error) {
+func (o *Options) Start(ctx context.Context) (*VM, error) {
 	cmdline, err := o.Cmdline()
 	if err != nil {
 		return nil, err
@@ -282,7 +305,12 @@ func (o *Options) Start() (*VM, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	var cancel context.CancelFunc
+	if o.VMTimeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, o.VMTimeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
 	vm := &VM{
 		Options: o,
 		Console: c,
@@ -299,7 +327,7 @@ func (o *Options) Start() (*VM, error) {
 		vm.notifs = append(vm.notifs, n)
 	}
 
-	cmd := exec.Command(cmdline[0], cmdline[1:]...)
+	cmd := exec.CommandContext(ctx, cmdline[0], cmdline[1:]...)
 	cmd.Stdin = c.Tty()
 	cmd.Stdout = c.Tty()
 	cmd.Stderr = c.Tty()
