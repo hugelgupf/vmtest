@@ -162,6 +162,8 @@ func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
 		QEMUPath:  os.Getenv("VMTEST_QEMU"),
 		Kernel:    os.Getenv("VMTEST_KERNEL"),
 		Initramfs: os.Getenv("VMTEST_INITRAMFS"),
+		// Disable graphics by default.
+		QEMUArgs: []string{"-nographic"},
 	}
 
 	if err := o.setArch(archFn.Arch()); err != nil {
@@ -386,8 +388,8 @@ func (o *Options) Cmdline() ([]string, error) {
 	// QEMU binary + initial args (may have been supplied via VMTEST_QEMU).
 	args = append(args, strings.Fields(o.QEMUPath)...)
 
-	// Disable graphics because we are using serial.
-	args = append(args, "-nographic")
+	// Add user / configured args.
+	args = append(args, o.QEMUArgs...)
 
 	if len(o.Kernel) > 0 {
 		args = append(args, "-kernel", o.Kernel)
@@ -402,7 +404,6 @@ func (o *Options) Cmdline() ([]string, error) {
 		args = append(args, "-initrd", o.Initramfs)
 	}
 
-	args = append(args, o.QEMUArgs...)
 	return args, nil
 }
 
