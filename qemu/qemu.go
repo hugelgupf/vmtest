@@ -411,20 +411,47 @@ func (o *Options) Cmdline() ([]string, error) {
 
 // VM is a running QEMU virtual machine.
 type VM struct {
-	wg errgroup.Group
-
-	Options *Options
-	cmdline []string
-	cmd     *exec.Cmd
+	// Console provides in/output to the QEMU subprocess.
 	Console *expect.Console
-	notifs  notifications
-	cancel  func()
+
+	// Options are the options that were used to start the VM.
+	//
+	// They are not used once the VM is started.
+	Options *Options
+
+	// cmd is the QEMU subprocess.
+	cmd *exec.Cmd
+
+	// The cmdline that the QEMU subprocess was started with.
+	cmdline []string
+
+	// State related to tasks.
+	wg     errgroup.Group
+	notifs notifications
+	cancel func()
 }
 
 // Cmdline is the command-line the VM was started with.
 func (v *VM) Cmdline() []string {
 	// Maybe return a copy?
 	return v.cmdline
+}
+
+// Kill kills the QEMU subprocess.
+//
+// Callers are still responsible for calling VM.Wait after calling kill to
+// clean up task goroutines and to get remaining serial console output.
+func (v *VM) Kill() error {
+	return v.cmd.Process.Kill()
+}
+
+// Signal signals the QEMU subprocess.
+//
+// Callers are still responsible for calling VM.Wait if the subprocess exits
+// due to this signal to clean up task goroutines and to get remaining serial
+// console output.
+func (v *VM) Signal(sig os.Signal) error {
+	return v.cmd.Process.Signal(sig)
 }
 
 // Wait waits for the VM to exit and expects EOF from the expect console.
