@@ -281,3 +281,31 @@ func EventChannel[T any](name string, events chan<- T) Fn {
 		return nil
 	}
 }
+
+// EventChannelCallback adds a virtio-serial-backed channel between host and
+// guest to send JSON events (T).
+//
+// Use guest.SerialEventChannel with the same name to get access to the emitter
+// in the guest.
+//
+// When a guest event occurs, the callback is called.
+func EventChannelCallback[T any](name string, callback func(T)) Fn {
+	ch := make(chan T)
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.Tasks = append(opts.Tasks, func(ctx context.Context, n *Notifications) error {
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+
+				case e, ok := <-ch:
+					if !ok {
+						return nil
+					}
+					callback(e)
+				}
+			}
+		})
+		return EventChannel[T](name, ch)(alloc, opts)
+	}
+}
