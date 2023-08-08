@@ -36,10 +36,10 @@ type VMOptions struct {
 
 // StartVM fills in some default options if not already provided, and starts a VM.
 //
-// StartVM uses a caller-supplied kernel and initramfs, or fills them in from
-// VMTEST_KERNEL and VMTEST_INITRAMFS environment variables.
-//
-//   - TODO: overhaul timouts.
+// StartVM uses a caller-supplied QEMU binary, architecture, kernel and
+// initramfs, or fills them in from VMTEST_QEMU, VMTEST_QEMU_ARCH,
+// VMTEST_KERNEL and VMTEST_INITRAMFS environment variables as is documented by
+// the qemu package.
 func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 

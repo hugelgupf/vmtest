@@ -64,9 +64,6 @@ type UrootFSOptions struct {
 // If VMTEST_INITRAMFS_OVERRIDE is set, that initramfs overrides the options
 // set in this test. (This can be used to, for example, run the same test with
 // an initramfs built by bazel rules.)
-//
-// Automatically sets VMTEST_QEMU_ARCH based on the VMTEST_GOARCH (which is
-// runtime.GOARCH by default).
 func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 

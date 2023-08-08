@@ -22,7 +22,7 @@ import (
 // Underneath, this generates an Elvish script with these commands. The script
 // is shared with the VM and run from a special init.
 //
-//   - TODO: timeouts, individual command + total.
+//   - TODO: timeouts for individual individual commands.
 //   - TODO: It should check their exit status. Hahaha.
 func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 	SkipWithoutQEMU(t)
