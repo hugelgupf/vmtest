@@ -3,41 +3,23 @@ version: 2
 templates:
   golang-template: &golang-template
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
 
   integration-amd64-template: &integration-amd64-template
     docker:
-      - image: uroottest/test-image-amd64:v5.2.0
+      - image: ghcr.io/hugelgupf/vmtest/ci-amd64:main
     working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
-    environment:
-      - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
-      - UROOT_QEMU_TIMEOUT_X: 7
-      - VMTEST_KERNEL: /home/circleci/bzImage
-      - VMTEST_QEMU: "/home/circleci/qemu-system-x86_64 -L /home/circleci/pc-bios -m 1G"
-      - VMTEST_GOARCH: amd64
 
   integration-arm64-template: &integration-arm64-template
     docker:
-      - image: uroottest/test-image-arm64:v5.2.0
+      - image: ghcr.io/hugelgupf/vmtest/ci-arm64:main
     working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
-    environment:
-      - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
-      - UROOT_QEMU_TIMEOUT_X: 7
-      - VMTEST_KERNEL: /home/circleci/Image
-      - VMTEST_QEMU: "/home/circleci/qemu-system-aarch64 -machine virt -cpu max -m 1G"
-      - VMTEST_GOARCH: arm64
 
   integration-arm-template: &integration-arm-template
     docker:
-      - image: uroottest/test-image-arm:v5.1.0
+      - image: ghcr.io/hugelgupf/vmtest/ci-arm:main
     working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
-    environment:
-      - UROOT_SOURCE: /home/circleci/go/src/github.com/hugelgupf/vmtest
-      - UROOT_QEMU_TIMEOUT_X: 7
-      - VMTEST_KERNEL: /home/circleci/zImage
-      - VMTEST_QEMU: "/home/circleci/qemu-system-arm -M virt -L /home/circleci/pc-bios"
-      - VMTEST_GOARCH: arm
 
   test-template: &test-template
     steps:
