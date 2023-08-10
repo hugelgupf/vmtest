@@ -247,6 +247,18 @@ type Options struct {
 
 	// VMTimeout is a timeout for the QEMU subprocess.
 	VMTimeout time.Duration
+
+	// ExtraFiles are extra files passed to QEMU on start.
+	ExtraFiles []*os.File
+}
+
+// AddFile adds the file to the QEMU process and returns the FD it will be in
+// the child process.
+func (o *Options) AddFile(f *os.File) int {
+	o.ExtraFiles = append(o.ExtraFiles, f)
+
+	// 0, 1, 2 used for stdin/out/err.
+	return len(o.ExtraFiles) + 2
 }
 
 // Task is a task running alongside the guest.
@@ -335,6 +347,7 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 	cmd.Stdin = c.Tty()
 	cmd.Stdout = c.Tty()
 	cmd.Stderr = c.Tty()
+	cmd.ExtraFiles = o.ExtraFiles
 	if err := cmd.Start(); err != nil {
 		// Cancel tasks.
 		cancel()
