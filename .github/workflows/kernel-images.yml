@@ -1,0 +1,72 @@
+name: Publish kernel images
+
+on:
+  push:
+    paths:
+      - 'images/arm/*'
+      - 'images/arm64/*'
+      - 'images/amd64/*'
+      - '.github/workflows/kernel-images.yml'
+      - '.github/actions/build-vmtest-ci-image.yml'
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'images/arm/*'
+      - 'images/arm64/*'
+      - 'images/amd64/*'
+      - '.github/workflows/kernel-images.yml'
+      - '.github/actions/build-vmtest-ci-image.yml'
+    branches: ['main']
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  arm-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 'Build Arm image'
+        uses: ./.github/actions/build-vmtest-ci-image
+        with:
+          dockercontext: ./images/arm
+          image-suffix: ci-arm
+          login-password: ${{ secrets.GITHUB_TOKEN }}
+
+  amd64-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 'Build AMD64 image'
+        uses: ./.github/actions/build-vmtest-ci-image
+        with:
+          dockercontext: ./images/amd64
+          image-suffix: ci-amd64
+          login-password: ${{ secrets.GITHUB_TOKEN }}
+
+  arm64-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 'Build Arm64 image'
+        uses: ./.github/actions/build-vmtest-ci-image
+        with:
+          dockercontext: ./images/arm64
+          image-suffix: ci-arm64
+          login-password: ${{ secrets.GITHUB_TOKEN }}

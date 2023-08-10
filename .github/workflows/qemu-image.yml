@@ -4,13 +4,13 @@ on:
   push:
     paths:
       - 'images/qemu/Dockerfile'
-      - '.github/workflows/images.yml'
+      - '.github/workflows/qemu-image.yml'
     branches: ['main']
     tags: ['v*']
   pull_request:
     paths:
       - 'images/qemu/Dockerfile'
-      - '.github/workflows/images.yml'
+      - '.github/workflows/qemu-image.yml'
     branches: ['main']
 
 env:
