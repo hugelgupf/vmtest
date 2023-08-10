@@ -5,8 +5,6 @@
 package vmtest
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -159,8 +157,10 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	if len(vmCoverProfile) > 0 {
 		uinitArgs = append(uinitArgs, "-coverprofile=/testdata/coverage.profile")
 	}
-	uinitArgs = append(uinitArgs, "-testresults=/testdata/results.json")
 	o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel(fmt.Sprintf("uroot.uinitargs=\"%s\"", strings.Join(uinitArgs, " "))))
+
+	tc := json2test.NewTestCollector()
+	o.QEMUOpts = append(o.QEMUOpts, qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle))
 
 	// Create the initramfs and start the VM.
 	vm := startVMTestVM(t, o)
@@ -194,25 +194,6 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		if err := cov.Close(); err != nil {
 			t.Fatalf("Could not close coverage.profile: %v", err)
 		}
-	}
-
-	// Parse JSON test results from VM.
-	testResults, err := os.Open(filepath.Join(o.SharedDir, "results.json"))
-	if err != nil {
-		t.Fatalf("Go test result JSON file could not be opened: %v", err)
-	}
-
-	tc := json2test.NewTestCollector()
-	s := bufio.NewScanner(testResults)
-	for s.Scan() {
-		var e json2test.TestEvent
-		if err := json.Unmarshal(s.Bytes(), &e); err != nil {
-			t.Fatalf("Failed to parse test result JSON: %v", err)
-		}
-		tc.Handle(e)
-	}
-	if err := s.Err(); err != nil {
-		t.Fatalf("Encountered error reading test result JSON file: %v", err)
 	}
 
 	// TODO: check that tc.Tests == tests
