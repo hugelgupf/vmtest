@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hugelgupf/vmtest/guest"
+	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/vminit/common"
 	"golang.org/x/sys/unix"
 )
@@ -24,7 +26,6 @@ const individualTestTimeout = 25 * time.Second
 
 var (
 	coverProfile = flag.String("coverprofile", "", "Filename to write coverage data to")
-	testResults  = flag.String("testresults", "", "Filename to write test2json data to")
 )
 
 func walkTests(testRoot string, fn func(string, string)) error {
@@ -81,11 +82,11 @@ func runTest() error {
 	defer cleanup()
 	defer common.CollectKernelCoverage()
 
-	testResultsF, err := os.OpenFile(*testResults, os.O_CREATE|os.O_WRONLY|os.O_SYNC|os.O_APPEND, 0777)
+	testResultEvents, err := guest.SerialEventChannel[json2test.TestEvent]("go-test-results")
 	if err != nil {
 		return err
 	}
-	defer testResultsF.Close()
+	defer testResultEvents.Close()
 
 	walkTests("/testdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
@@ -126,7 +127,7 @@ func runTest() error {
 		// the test, we may lose some of the last few lines.
 		j := exec.Command("test2json", "-t", "-p", pkgName)
 		j.Stdin = r
-		j.Stdout, cmd.Stderr = testResultsF, os.Stderr
+		j.Stdout, cmd.Stderr = testResultEvents, os.Stderr
 		if err := j.Start(); err != nil {
 			log.Printf("Failed to start test2json: %v", err)
 			return
