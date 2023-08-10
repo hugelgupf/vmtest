@@ -19,6 +19,11 @@ on:
       - '.github/actions/build-vmtest-ci-image.yml'
     branches: ['main']
 
+# Cancel running workflows on new push to a PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
 
