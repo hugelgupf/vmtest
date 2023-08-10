@@ -13,6 +13,11 @@ on:
       - '.github/workflows/qemu-image.yml'
     branches: ['main']
 
+# Cancel running workflows on new push to a PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/qemu
