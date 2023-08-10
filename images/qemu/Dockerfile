@@ -23,7 +23,12 @@ RUN apt-get update &&                          \
         python3-pip                                 \
         zlib1g-dev                                  \
         golang                                      \
-        bzip2;
+        bzip2                                       \
+        # Compiling Option ROMs
+        gcc-aarch64-linux-gnu                       \
+        gcc-arm-linux-gnueabi                       \
+        gcc-i686-linux-gnu                          \
+        gcc-riscv64-linux-gnu;
 
 WORKDIR /root
 
@@ -32,26 +37,35 @@ RUN git clone --depth=1 --branch=v4.7.0 https://gitlab.freedesktop.org/slirp/lib
 RUN cd libslirp && meson setup build && ninja -C build install
 
 # Build QEMU
-RUN git clone --depth=1 --branch=v8.1.0-rc2 https://github.com/qemu/qemu;
+RUN git clone --depth=1 --recurse-submodules --branch=v8.1.0-rc2 https://github.com/qemu/qemu;
 
 RUN cd qemu && mkdir build && cd build && ../configure                 \
-        --target-list=x86_64-softmmu                                   \
+        --target-list="x86_64-softmmu aarch64-softmmu arm-softmmu riscv64-softmmu" \
         --enable-virtfs                                                \
+        --enable-slirp                                                 \
         --disable-docs                                                 \
         --disable-sdl                                                  \
         && \
-      make -j$(($(nproc) * 2 + 1)) qemu-system-x86_64;
+      make -j$(($(nproc) * 2 + 1)) \
+        pc-bios/optionrom/all     \
+        fsdev/virtfs-proxy-helper \
+        qemu-system-x86_64        \
+        qemu-system-aarch64       \
+        qemu-system-arm           \
+        qemu-system-riscv64;
 
-# Zapp me!
 RUN git clone --depth=1 --branch=zappit https://github.com/hugelgupf/ldshim;
 RUN cd ldshim && make;
 RUN cd ldshim/zappit && go build;
-RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-x86_64;
 
-RUN cd /root;                                                           \
-    cp -rL qemu/build/pc-bios/ /root/zqemu/pc-bios;
+# Zapp em!
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-x86_64;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-aarch64;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-arm;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-riscv64;
+
+RUN cp -rL /root/qemu/build/pc-bios/ /root/zqemu/pc-bios;
 
 FROM scratch
 
 COPY --from=build /root/zqemu /zqemu
-ENV VMTEST_QEMU "/zqemu/bin/qemu-system-x86_64 -L /zqemu/pc-bios -m 1G"
