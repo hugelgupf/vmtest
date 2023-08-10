@@ -43,4 +43,4 @@ COPY --from=qemu /zqemu /zqemu
 COPY --from=base /root/linux/arch/arm/boot/zImage /home/circleci/zImage
 ENV VMTEST_KERNEL "/home/circleci/zImage"
 ENV VMTEST_GOARCH "arm"
-ENV VMTEST_QEMU "/zqemu/bin/qemu-system-arm -M virt -L /zqemu/pc-bios/pc-bios"
+ENV VMTEST_QEMU "/zqemu/bin/qemu-system-arm -M virt,highmem=off -L /zqemu/pc-bios"
