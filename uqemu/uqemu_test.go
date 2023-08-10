@@ -126,13 +126,6 @@ func TestStartVM(t *testing.T) {
 	initrdPath := filepath.Join(tmp, "initramfs.cpio")
 
 	r, w := io.Pipe()
-	var kernelArgs string
-	switch GuestGOARCH() {
-	case "arm":
-		kernelArgs = "console=ttyAMA0"
-	case "amd64":
-		kernelArgs = "console=ttyS0 earlyprintk=ttyS0"
-	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -156,7 +149,7 @@ func TestStartVM(t *testing.T) {
 			"github.com/hugelgupf/vmtest/qemu/qemutest1",
 		),
 	}
-	vm, err := qemu.Start(WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w), qemu.WithAppendKernel(kernelArgs))
+	vm, err := qemu.Start(WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
@@ -178,13 +171,6 @@ func TestTask(t *testing.T) {
 	initrdPath := filepath.Join(tmp, "initramfs.cpio")
 
 	r, w := io.Pipe()
-	var kernelArgs string
-	switch GuestGOARCH() {
-	case "arm":
-		kernelArgs = "console=ttyAMA0"
-	case "amd64":
-		kernelArgs = "console=ttyS0 earlyprintk=ttyS0"
-	}
 
 	var taskGotCanceled bool
 	var taskSawIAmHere bool
@@ -202,7 +188,6 @@ func TestTask(t *testing.T) {
 	vm, err := qemu.Start(
 		WithUrootInitramfs(logger, initramfs, initrdPath),
 		qemu.WithSerialOutput(w),
-		qemu.WithAppendKernel(kernelArgs),
 		// Tests that we can wait for VM to start.
 		qemu.WithTask(qemu.WaitVMStarted(func(ctx context.Context, n *qemu.Notifications) error {
 			s := bufio.NewScanner(r)

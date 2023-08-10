@@ -62,21 +62,13 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		arch = qemu.GuestArchUseEnvv
 	}
 
-	var qopts []qemu.Fn
-	switch arch.Arch() {
-	case qemu.GuestArchX8664:
-		qopts = append(qopts, qemu.WithAppendKernel("console=ttyS0 earlyprintk=ttyS0"))
-	case qemu.GuestArchArm:
-		qopts = append(qopts, qemu.WithAppendKernel("console=ttyAMA0"))
-	}
-
-	qopts = append(qopts,
+	qopts := []qemu.Fn{
 		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(consoleOutputName, t.Logf)),
 		// Tests use this cmdline arg to identify they are running inside a
 		// vmtest using SkipIfNotInVM
 		qemu.WithAppendKernel("uroot.vmtest"),
 		qemu.VirtioRandom(),
-	)
+	}
 	if o.SharedDir != "" {
 		qopts = append(qopts, qemu.P9Directory(o.SharedDir, false, ""))
 	}
