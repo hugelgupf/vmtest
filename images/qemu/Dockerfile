@@ -65,7 +65,7 @@ RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qem
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-riscv64;
 
 RUN cp -rL /root/qemu/build/pc-bios/ /root/zqemu/pc-bios;
-RUN cp -rL /root/qemu/pc-bios/ /root/zqemu/pc-bios;
+RUN cp -rL /root/qemu/pc-bios/* /root/zqemu/pc-bios;
 
 FROM scratch
 
