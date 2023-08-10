@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
+	github.com/creack/pty v1.1.18
 	github.com/u-root/gobusybox/src v0.0.0-20230806212452-e9366a5b9fdc
 	github.com/u-root/u-root v0.11.1-0.20230807200058-f87ad7ccb594
 	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	github.com/creack/pty v1.1.18 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/goexpect v0.0.0-20210430020637-ab937bf7fd6f // indirect
 	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2 // indirect

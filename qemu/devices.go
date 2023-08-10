@@ -7,9 +7,15 @@ package qemu
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"syscall"
+
+	"github.com/creack/pty"
+	"github.com/hugelgupf/vmtest/internal/eventchannel"
 )
 
 // IDAllocator is used to ensure no overlapping QEMU option IDs.
@@ -187,5 +193,76 @@ func LogSerialByLine(callback func(line string)) Fn {
 func PrintLineWithPrefix(prefix string, printer func(fmt string, arg ...any)) func(line string) {
 	return func(line string) {
 		printer("%s: %s", prefix, line)
+	}
+}
+
+type ptmClosedErrorConverter struct {
+	r io.Reader
+}
+
+// "read /dev/ptmx: input/output error" error occufs on Linux while reading
+// from the ptm after the pts is closed.
+var ptmClosed = os.PathError{
+	Op:   "read",
+	Path: "/dev/ptmx",
+	Err:  syscall.EIO,
+}
+
+func (c ptmClosedErrorConverter) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	var perr *os.PathError
+	if errors.As(err, &perr) && *perr == ptmClosed {
+		return n, io.EOF
+	}
+	return n, err
+}
+
+// EventChannel adds a virtio-serial-backed channel between host and guest to
+// send JSON events (T).
+//
+// Use guest.SerialEventChannel with the same name to get access to the emitter
+// in the guest.
+func EventChannel[T any](name string, callback func(T)) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		pipeID := alloc.ID("pipe")
+
+		ptm, pts, err := pty.Open()
+		if err != nil {
+			return err
+		}
+		fd := opts.AddFile(pts)
+		opts.AppendQEMU(
+			"-device", "virtio-serial",
+			"-device", fmt.Sprintf("virtserialport,chardev=%s,name=%s", pipeID, name),
+			"-chardev", fmt.Sprintf("pipe,id=%s,path=/proc/self/fd/%d", pipeID, fd),
+		)
+
+		var gotDone bool
+		opts.Tasks = append(opts.Tasks, WaitVMStarted(func(ctx context.Context, n *Notifications) error {
+			// Close ptm if it isn't already closed due to the VM
+			// exiting.
+			defer ptm.Close()
+
+			// Close write-end on parent side.
+			pts.Close()
+
+			err := eventchannel.ProcessJSONByLine[eventchannel.Event[T]](ptmClosedErrorConverter{ptm}, func(c eventchannel.Event[T]) {
+				switch c.GuestAction {
+				case eventchannel.ActionGuestEvent:
+					callback(c.Actual)
+
+				case eventchannel.ActionDone:
+					gotDone = true
+				}
+			})
+			if err != nil {
+				return err
+			}
+			if !gotDone {
+				return fmt.Errorf("never received the final event channel event (did you call Close() on the guest event channel emitter?)")
+			}
+			return nil
+		}))
+		return nil
 	}
 }
