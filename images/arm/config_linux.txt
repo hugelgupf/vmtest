@@ -49,10 +49,12 @@ CONFIG_MSDOS_FS=y
 CONFIG_EXT4_FS=y
 
 # 9P filesystem
-
 CONFIG_NET_9P=y
 CONFIG_NET_9P_VIRTIO=y
 CONFIG_9P_FS=y
+# virtio-9p-device on qemu-system-arm uses virtio MMIO.
+CONFIG_VIRTIO_MMIO=y
+
 CONFIG_PCI=y
 CONFIG_VIRTIO_PCI=y
 CONFIG_PCI_HOST_GENERIC=y
