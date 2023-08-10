@@ -253,17 +253,8 @@ func TestStartVM(t *testing.T) {
 	}
 
 	arch := goarchToQEMUArch[guestGOARCH()]
-	var kernelArgs string
-	switch arch {
-	case "arm":
-		kernelArgs = "console=ttyAMA0"
-	case "x86_64":
-		kernelArgs = "console=ttyS0 earlyprintk=ttyS0"
-	}
-
 	vm, err := Start(arch,
 		WithInitramfs(initrdPath),
-		WithAppendKernel(kernelArgs),
 		LogSerialByLine(PrintLineWithPrefix("vm", t.Logf)),
 	)
 	if err != nil {
