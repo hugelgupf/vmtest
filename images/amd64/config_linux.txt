@@ -22,6 +22,10 @@ CONFIG_SERIAL_8250=y
 CONFIG_SERIAL_8250_CONSOLE=y
 CONFIG_TTY=y
 
+# Always print to serial port
+CONFIG_CMDLINE_BOOL=y
+CONFIG_CMDLINE="console=ttyS0 earlyprintk=ttyS0"
+
 # Block devices
 CONFIG_BLOCK=y
 CONFIG_ATA=y
