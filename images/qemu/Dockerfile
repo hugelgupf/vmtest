@@ -55,6 +55,7 @@ RUN cd qemu && mkdir build && cd build && ../configure                 \
         qemu-system-riscv64;
 
 RUN git clone --depth=1 --branch=zappit https://github.com/hugelgupf/ldshim;
+
 RUN cd ldshim && make;
 RUN cd ldshim/zappit && go build;
 
