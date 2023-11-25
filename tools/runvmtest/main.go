@@ -15,6 +15,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"text/template"
 
 	"dagger.io/dagger"
 )
@@ -43,7 +45,7 @@ func (tc *TestEnvConfig) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&tc.KernelContainer, "kernel-container", tc.KernelContainer, "Container to use for kernel files")
 	f.StringVar(&tc.KernelPath, "kernel-path", tc.KernelPath, "Path where to find the kernel image")
 	f.StringVar(&tc.QEMUContainer, "qemu-container", tc.QEMUContainer, "Container to use for QEMU files")
-	f.StringVar(&tc.QEMUCmd, "qemu-cmd", tc.QEMUCmd, "QEMU command with platform specific flags")
+	f.StringVar(&tc.QEMUCmd, "qemu-cmd", tc.QEMUCmd, "QEMU command with platform-specific flags (template variables {{.QEMUBin}} and {{.BIOSPath}} available)")
 	f.StringVar(&tc.QEMUPath, "qemu-path", tc.QEMUPath, "Path where to find the QEMU binary")
 	f.StringVar(&tc.BIOSPath, "bios-path", tc.BIOSPath, "Path where to find the BIOS image")
 }
@@ -53,7 +55,7 @@ var configs = map[string]TestEnvConfig{
 		KernelContainer: "ghcr.io/hugelgupf/vmtest/kernel-amd64:main",
 		KernelPath:      "/bzImage",
 		QEMUContainer:   "ghcr.io/hugelgupf/vmtest/qemu:main",
-		QEMUCmd:         "qemu-system-x86_64 -L %s -m 1G",
+		QEMUCmd:         "{{.QEMUBin}} -L {{.BIOSPath}} -m 1G",
 		QEMUPath:        "/zqemu/bin/qemu-system-x86_64",
 		BIOSPath:        "/zqemu/pc-bios",
 	},
@@ -61,7 +63,7 @@ var configs = map[string]TestEnvConfig{
 		KernelContainer: "ghcr.io/hugelgupf/vmtest/kernel-arm:main",
 		KernelPath:      "/zImage",
 		QEMUContainer:   "ghcr.io/hugelgupf/vmtest/qemu:main",
-		QEMUCmd:         "qemu-system-arm -M virt,highmem=off -L %s",
+		QEMUCmd:         "{{.QEMUBin}} -M virt,highmem=off -L {{.BIOSPath}}",
 		QEMUPath:        "/zqemu/bin/qemu-system-arm",
 		BIOSPath:        "/zqemu/pc-bios",
 	},
@@ -69,7 +71,7 @@ var configs = map[string]TestEnvConfig{
 		KernelContainer: "ghcr.io/hugelgupf/vmtest/kernel-arm64:main",
 		KernelPath:      "/Image",
 		QEMUContainer:   "ghcr.io/hugelgupf/vmtest/qemu:main",
-		QEMUCmd:         "qemu-system-aarch64 -machine virt -cpu max -m 1G -L %s",
+		QEMUCmd:         "{{.QEMUBin}} -machine virt -cpu max -m 1G -L {{.BIOSPath}}",
 		QEMUPath:        "/zqemu/bin/qemu-system-aarch64",
 		BIOSPath:        "/zqemu/pc-bios",
 	},
@@ -109,10 +111,10 @@ func run() error {
 		WithFile(config.KernelPath, client.Container().From(config.KernelContainer).File(config.KernelPath)).
 		Directory("/")
 
-	return runNatively(ctx, artifacts, config.KernelPath, config.QEMUCmd, flag.Args())
+	return runNatively(ctx, artifacts, &config, flag.Args())
 }
 
-func runNatively(ctx context.Context, artifacts *dagger.Directory, kpath, qemuCmd string, args []string) error {
+func runNatively(ctx context.Context, artifacts *dagger.Directory, config *TestEnvConfig, args []string) error {
 	tmp, err := os.MkdirTemp(".", "ci-testing")
 	if err != nil {
 		return fmt.Errorf("unable to create tmp dir: %w", err)
@@ -130,24 +132,28 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, kpath, qemuCm
 		return fmt.Errorf("could not retrieve absolute path: %w", err)
 	}
 
-	kpath = filepath.Join(tmp, kpath)
-	qemuCmd = fmt.Sprintf(qemuCmd, filepath.Join(tmp, "zqemu", "pc-bios"))
-
-	// Rather than adding the QEMU Cmd to PATH in cmd.Env,
-	// we are doing this because args[0] can be qemu, and if that's the case,
-	// exec.Command does not evaluate the PATH in cmd.Env, but instead the one in the current environment.
-	// The PATH will also be restored after the program exits.
-	p := os.Getenv("PATH")
-	if err := os.Setenv("PATH", fmt.Sprintf("%s:%s", p, filepath.Join(tmp, "zqemu", "bin"))); err != nil {
-		return fmt.Errorf("failed to update PATH: %w", err)
+	kpath := filepath.Join(tmp, config.KernelPath)
+	sub := struct {
+		QEMUBin  string
+		BIOSPath string
+	}{
+		QEMUBin:  filepath.Join(tmp, config.QEMUPath),
+		BIOSPath: filepath.Join(tmp, config.BIOSPath),
 	}
-	defer os.Setenv("PATH", p)
+	qemuTemplate, err := template.New("qemu").Parse(config.QEMUCmd)
+	if err != nil {
+		return fmt.Errorf("invalid QEMU command template: %w", err)
+	}
+	var qemuCmd strings.Builder
+	if err := qemuTemplate.Execute(&qemuCmd, sub); err != nil {
+		return fmt.Errorf("failed to substitute QEMU command template variables: %w", err)
+	}
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("VMTEST_KERNEL=%s", kpath),
-		fmt.Sprintf("VMTEST_QEMU=%s", qemuCmd),
+		fmt.Sprintf("VMTEST_QEMU=%s", qemuCmd.String()),
 	)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -157,8 +163,7 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, kpath, qemuCm
 		defer func() {
 			fmt.Println("\nTo run another test using the same artifacts:")
 
-			qemuCmd = filepath.Join(tmp, "qemu", "bin") + "/" + qemuCmd
-			fmt.Printf("VMTEST_KERNEL=%s VMTEST_QEMU=%q ...\n", kpath, qemuCmd)
+			fmt.Printf("VMTEST_KERNEL=%s VMTEST_QEMU=%q ...\n", kpath, qemuCmd.String())
 		}()
 	}
 
