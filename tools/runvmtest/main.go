@@ -19,6 +19,10 @@ import (
 	"dagger.io/dagger"
 )
 
+var (
+	keepArtifacts = flag.Bool("keep-artifacts", false, "Keep artifacts directory available for further local tests")
+)
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatalf("Error: %v", err)
@@ -113,7 +117,9 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, kpath, qemuCm
 	if err != nil {
 		return fmt.Errorf("unable to create tmp dir: %w", err)
 	}
-	defer os.RemoveAll(tmp)
+	if !*keepArtifacts {
+		defer os.RemoveAll(tmp)
+	}
 
 	if ok, err := artifacts.Export(ctx, tmp); !ok || err != nil {
 		return fmt.Errorf("failed artifact export: %w", err)
@@ -125,7 +131,6 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, kpath, qemuCm
 	}
 
 	kpath = filepath.Join(tmp, kpath)
-
 	qemuCmd = fmt.Sprintf(qemuCmd, filepath.Join(tmp, "zqemu", "pc-bios"))
 
 	// Rather than adding the QEMU Cmd to PATH in cmd.Env,
@@ -147,6 +152,15 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, kpath, qemuCm
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	if *keepArtifacts {
+		defer func() {
+			fmt.Println("\nTo run another test using the same artifacts:")
+
+			qemuCmd = filepath.Join(tmp, "qemu", "bin") + "/" + qemuCmd
+			fmt.Printf("VMTEST_KERNEL=%s VMTEST_QEMU=%q ...\n", kpath, qemuCmd)
+		}()
+	}
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed execution: %w", err)
