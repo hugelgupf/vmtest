@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// runvmtest sets appropriate environment variables for the execution of a
-// vmtest binary.
+// runvmtest sets VMTEST_QEMU and VMTEST_KERNEL (if not already set) with
+// binaries downloaded from Docker images, then executes a command.
 package main
 
 import (
@@ -150,11 +150,13 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, config *TestE
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("VMTEST_KERNEL=%s", kpath),
-		fmt.Sprintf("VMTEST_QEMU=%s", qemuCmd.String()),
-	)
+	cmd.Env = os.Environ()
+	if os.Getenv("VMTEST_KERNEL") == "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("VMTEST_KERNEL=%s", kpath))
+	}
+	if os.Getenv("VMTEST_QEMU") == "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("VMTEST_QEMU=%s", qemuCmd.String()))
+	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
