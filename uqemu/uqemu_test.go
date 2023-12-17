@@ -265,3 +265,36 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 	// Ensure that event channel is closed even in error case.
 	wg.Wait()
 }
+
+// Tests that we do not hang forever when HaltOnKernelPanic is passed.
+func TestKernelPanic(t *testing.T) {
+	logger := &ulogtest.Logger{TB: t}
+
+	// init exits after not finding anything to do, so kernel panics.
+	initramfs := uroot.Opts{
+		InitCmd: "init",
+		TempDir: t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+		),
+	}
+
+	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
+		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.HaltOnKernelPanic(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	if _, err := vm.Console.ExpectString("Kernel panic"); err != nil {
+		t.Errorf("Expect(Kernel panic) = %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Fatalf("VM.Wait = %v", err)
+	}
+}
