@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -101,7 +100,7 @@ func TestCmdline(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		arch ArchFn
+		arch Arch
 		fns  []Fn
 		want []cmdlineEqualOpt
 		envv map[string]string
@@ -109,7 +108,7 @@ func TestCmdline(t *testing.T) {
 	}{
 		{
 			name: "simple",
-			arch: GuestArchX8664,
+			arch: ArchAMD64,
 			fns:  []Fn{WithQEMUCommand("qemu"), WithKernel("./foobar")},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
@@ -119,13 +118,13 @@ func TestCmdline(t *testing.T) {
 		},
 		{
 			name: "kernel-args-fail",
-			arch: GuestArchX8664,
+			arch: ArchAMD64,
 			fns:  []Fn{WithQEMUCommand("qemu"), WithAppendKernel("printk=ttyS0")},
 			err:  ErrKernelRequiredForArgs,
 		},
 		{
 			name: "kernel-args-initrd-with-precedence-over-env",
-			arch: GuestArchX8664,
+			arch: ArchAMD64,
 			fns: []Fn{
 				WithQEMUCommand("qemu"),
 				WithKernel("./foobar"),
@@ -148,7 +147,7 @@ func TestCmdline(t *testing.T) {
 		},
 		{
 			name: "id-allocator",
-			arch: GuestArchX8664,
+			arch: ArchAMD64,
 			fns: []Fn{
 				WithQEMUCommand("qemu"),
 				WithKernel("./foobar"),
@@ -169,7 +168,7 @@ func TestCmdline(t *testing.T) {
 		},
 		{
 			name: "env-config",
-			arch: GuestArchUseEnvv,
+			arch: ArchUseEnvv,
 			envv: map[string]string{
 				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
 				"VMTEST_QEMU_ARCH": "x86_64",
@@ -211,21 +210,6 @@ func TestCmdline(t *testing.T) {
 	}
 }
 
-// goarchToQEMUArch maps GOARCH to QEMU arch values.
-var goarchToQEMUArch = map[string]GuestArch{
-	"386":   GuestArchI386,
-	"amd64": GuestArchX8664,
-	"arm":   GuestArchArm,
-	"arm64": GuestArchAarch64,
-}
-
-func guestGOARCH() string {
-	if env := os.Getenv("VMTEST_GOARCH"); env != "" {
-		return env
-	}
-	return runtime.GOARCH
-}
-
 func TestStartVM(t *testing.T) {
 	tmp := t.TempDir()
 	logger := &ulogtest.Logger{TB: t}
@@ -235,7 +219,7 @@ func TestStartVM(t *testing.T) {
 		t.Fatalf("Failed to create initramfs writer: %v", err)
 	}
 
-	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(guestGOARCH()))
+	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(GuestArch())))
 
 	uopts := uroot.Opts{
 		Env:        env,
@@ -252,8 +236,8 @@ func TestStartVM(t *testing.T) {
 		t.Fatalf("error creating initramfs: %v", err)
 	}
 
-	arch := goarchToQEMUArch[guestGOARCH()]
-	vm, err := Start(arch,
+	vm, err := Start(
+		GuestArch(),
 		WithInitramfs(initrdPath),
 		LogSerialByLine(PrintLineWithPrefix("vm", t.Logf)),
 	)
@@ -279,7 +263,7 @@ func ClearQEMUArgs() Fn {
 }
 
 func TestSubprocessTimesOut(t *testing.T) {
-	vm, err := Start(GuestArchX8664,
+	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 30"),
 		WithVMTimeout(5*time.Second),
 		ClearQEMUArgs(),
@@ -303,7 +287,7 @@ func TestSubprocessTimesOut(t *testing.T) {
 }
 
 func TestSubprocessKilled(t *testing.T) {
-	vm, err := Start(GuestArchX8664,
+	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 60"),
 		ClearQEMUArgs(),
 		// In case the user is calling this test with env vars set.
@@ -332,7 +316,7 @@ func TestSubprocessKilled(t *testing.T) {
 func TestTaskCanceledVMExits(t *testing.T) {
 	var taskGotCanceled bool
 
-	vm, err := Start(GuestArchX8664,
+	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 3"),
 		ClearQEMUArgs(),
 		// In case the user is calling this test with env vars set.
@@ -364,7 +348,7 @@ func TestTaskCanceledVMExits(t *testing.T) {
 func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
 	var taskGotCanceled bool
 
-	_, err := Start(GuestArchX8664,
+	_, err := Start(ArchAMD64,
 		// Some path that does not exist.
 		WithQEMUCommand(filepath.Join(t.TempDir(), "qemu")),
 		// Make sure that the test does not time out

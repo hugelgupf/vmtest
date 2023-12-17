@@ -18,7 +18,7 @@ import (
 // shell in the VM. If any command fails, the test fails.
 //
 // The VM can be configured with o. The kernel can be provided via o or
-// VMTEST_KERNEL env var. Guest architecture can be set with VMTEST_GOARCH.
+// VMTEST_KERNEL env var. Guest architecture can be set with VMTEST_ARCH.
 //
 // Underneath, this generates an Elvish script with these commands. The script
 // is shared with the VM and run from a special init.

@@ -68,15 +68,12 @@ type UrootFSOptions struct {
 func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
-	if o.VMOptions.GuestArch != nil {
-		t.Fatal("UrootFSOptions must not specify GuestArch")
-	}
 	vmopts := o.VMOptions
-	vmopts.GuestArch = WithUroot(t, o.BuildOpts)
+	vmopts.QEMUOpts = append(vmopts.QEMUOpts, WithUroot(t, o.BuildOpts))
 	return StartVM(t, &vmopts)
 }
 
-func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.ArchFn {
+func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.Fn {
 	// Always add init and elvish.
 	initramfs.AddBusyBoxCommands(
 		"github.com/u-root/u-root/cmds/core/init",

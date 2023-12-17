@@ -11,8 +11,8 @@ Fun stuff coming
 ```go
 func TestStartVM(t *testing.T) {
     vm, err := qemu.Start(
-        // Or use qemu.GuestArchUseEnvv and set VMTEST_QEMU_ARCH=x86_64
-        qemu.GuestArchX8664,
+        // Or use qemu.ArchUseEnvv and set VMTEST_ARCH=amd64 (values like GOARCH)
+        qemu.ArchAMD64,
 
         // Or omit and set VMTEST_QEMU="qemu-system-x86_64 -enable-kvm"
         qemu.WithQEMUCommand("qemu-system-x86_64 -enable-kvm"),
@@ -61,8 +61,7 @@ func TestStartVM(t *testing.T) {
         },
     }
     vm, err := qemu.Start(
-        // This also sets the QEMU architecture, derived from the guest GOARCH.
-        // Guest GOARCH can be set with VMTEST_GOARCH.
+        qemu.ArchUseEnvv,
         uqemu.WithUrootInitramfs(l, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
 
         // Other options...
@@ -75,7 +74,8 @@ func TestStartVM(t *testing.T) {
 
 ```go
 func TestStartVM(t *testing.T) {
-    vm, err := qemu.Start(qemu.GuestArchUseEnvv,
+    vm, err := qemu.Start(
+        qemu.ArchUseEnvv,
         // Other config ...
 
         // Runs a goroutine alongside the QEMU process, which is canceled via

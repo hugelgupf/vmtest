@@ -19,95 +19,24 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/test/eventemitter/event"
-	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 )
 
 func TestOverride(t *testing.T) {
-	resetVars := []string{
-		"VMTEST_QEMU",
-		"VMTEST_QEMU_ARCH",
-		"VMTEST_GOARCH",
-		"VMTEST_KERNEL",
-		"VMTEST_INITRAMFS",
-		"VMTEST_INITRAMFS_OVERRIDE",
-	}
-	// In case these env vars are actually set by calling env & used below
-	// in other tests, save their values, set them to empty for duration of
-	// test & restore them after.
-	savedEnv := make(map[string]string)
-	for _, key := range resetVars {
-		savedEnv[key] = os.Getenv(key)
-		os.Setenv(key, "")
-	}
 	t.Cleanup(func() {
-		for key, val := range savedEnv {
-			os.Setenv(key, val)
-		}
+		os.Setenv("VMTEST_INITRAMFS_OVERRIDE", "")
 	})
 
-	for _, tt := range []struct {
-		name          string
-		envv          map[string]string
-		o             *options
-		wantInitramfs string
-		wantArch      qemu.GuestArch
-		err           error
-	}{
-		{
-			name: "initramfs-override",
-			envv: map[string]string{
-				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
-				"VMTEST_GOARCH":             "amd64",
-			},
-			o: &options{
-				initramfs: uroot.Opts{Env: golang.Default(golang.WithGOARCH("386"))},
-			},
-			wantInitramfs: "./foo.cpio",
-			wantArch:      qemu.GuestArchI386,
-		},
-		{
-			name: "initramfs-override-and-goarch",
-			envv: map[string]string{
-				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
-				"VMTEST_GOARCH":             "386",
-			},
-			o:             &options{},
-			wantInitramfs: "./foo.cpio",
-			wantArch:      qemu.GuestArchI386,
-		},
-		{
-			name: "initramfs-override-and-runtime-goarch",
-			envv: map[string]string{
-				"VMTEST_INITRAMFS_OVERRIDE": "./foo.cpio",
-			},
-			o:             &options{},
-			wantInitramfs: "./foo.cpio",
-			wantArch:      qemu.GuestArchX8664,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, val := range tt.envv {
-				os.Setenv(key, val)
-			}
-			t.Cleanup(func() {
-				for key := range tt.envv {
-					os.Setenv(key, "")
-				}
-			})
+	want := "foo.cpio"
+	os.Setenv("VMTEST_INITRAMFS_OVERRIDE", "foo.cpio")
 
-			got, err := qemu.OptionsFor(tt.o)
-			if !errors.Is(err, tt.err) {
-				t.Errorf("Build = %v, want %v", err, tt.err)
-			}
-			if got.Initramfs != tt.wantInitramfs {
-				t.Errorf("Build = %v, want %v", got.Initramfs, tt.wantInitramfs)
-			}
-			if arch := got.GuestArch(); arch != tt.wantArch {
-				t.Errorf("Build = arch %v, want arch %v", arch, tt.wantArch)
-			}
-		})
+	got, err := qemu.OptionsFor(qemu.ArchUseEnvv, WithUrootInitramfs(nil, uroot.Opts{}, ""))
+	if err != nil {
+		t.Errorf("OptionsFor = %v", err)
+	}
+	if got.Initramfs != want {
+		t.Errorf("Initramfs = %v, want %v", got.Initramfs, want)
 	}
 }
 
@@ -150,7 +79,7 @@ func TestStartVM(t *testing.T) {
 			"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
 		),
 	}
-	vm, err := qemu.Start(WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
+	vm, err := qemu.Start(qemu.ArchUseEnvv, WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
@@ -187,6 +116,7 @@ func TestTask(t *testing.T) {
 		),
 	}
 	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
 		WithUrootInitramfs(logger, initramfs, initrdPath),
 		qemu.WithSerialOutput(w),
 		// Tests that we can wait for VM to start.
@@ -262,6 +192,7 @@ func TestEventChannel(t *testing.T) {
 	}
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
 		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
 		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
 		qemu.EventChannel[event.Event]("test", events),
@@ -308,6 +239,7 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 	}
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
 		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
 		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
 		qemu.EventChannel[event.Event]("test", events),
