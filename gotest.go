@@ -158,6 +158,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 			WithMergedInitramfs(initramfs),
 			WithQEMUFn(qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle)),
 			WithSharedDir(sharedDir),
+			CollectKernelCoverage(),
 		}, o...)...)
 
 	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {

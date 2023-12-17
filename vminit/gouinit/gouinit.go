@@ -85,7 +85,7 @@ func runTest() error {
 		return err
 	}
 	defer cleanup()
-	defer common.CollectKernelCoverage()
+	defer guest.CollectKernelCoverage()
 
 	testResultEvents, err := guest.SerialEventChannel[json2test.TestEvent]("go-test-results")
 	if err != nil {
