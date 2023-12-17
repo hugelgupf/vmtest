@@ -8,7 +8,7 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, nil)
+	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"})
 }
 
 func TestHelloWorld(t *testing.T) {

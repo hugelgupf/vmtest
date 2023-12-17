@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
@@ -36,12 +35,11 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 // pass/fail result of each individual test.
 //
 // RunGoTestsInVM runs tests and benchmarks, but not fuzz tests. Guest test
-// architecture can be set with VMTEST_ARCH; arm, arm64 and amd64 are supported.
+// architecture can be set with VMTEST_ARCH.
 //
-// The kernel can be provided via UrootFSOptions or VMTEST_KERNEL env var. The
-// test environment in the VM is very minimal. If a test depends on other
-// binaries or specific files to be present, they must be specified in the
-// options via UrootFSOptions.BuildOpts.
+// The test environment in the VM is very minimal. If a test depends on other
+// binaries or specific files to be present, they must be specified with
+// additional initramfs commands via WithMergedInitramfs.
 //
 // All files and directories in the same directory as the test package will be
 // made available to the test in the guest as well (e.g. testdata/
@@ -53,30 +51,23 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
 //   - TODO: specify timeouts for individual tests.
 //   - TODO: check each test's exit status.
-func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
+func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 	SkipWithoutQEMU(t)
 
-	if o == nil {
-		o = &UrootFSOptions{}
-	}
-	if o.SharedDir == "" {
-		o.SharedDir = testtmp.TempDir(t)
-	}
-
+	sharedDir := testtmp.TempDir(t)
 	vmCoverProfile, ok := os.LookupEnv("UROOT_QEMU_COVERPROFILE")
 	if !ok {
 		t.Log("QEMU test coverage is not collected unless UROOT_QEMU_COVERPROFILE is set")
 	}
 
 	// Set up u-root build options.
-	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(o.VMOptions.GuestArch.Arch())))
-	o.BuildOpts.Env = env
+	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(qemu.GuestArch().Arch())))
 
 	// Statically build tests and add them to the temporary directory.
-	testDir := filepath.Join(o.SharedDir, "tests")
+	testDir := filepath.Join(sharedDir, "tests")
 
 	if len(vmCoverProfile) > 0 {
-		f, err := os.Create(filepath.Join(o.SharedDir, "coverage.profile"))
+		f, err := os.Create(filepath.Join(sharedDir, "coverage.profile"))
 		if err != nil {
 			t.Fatalf("Could not create coverage file %v", err)
 		}
@@ -115,7 +106,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		// executable is not generated, so it is not included in the
 		// `tests` list.
 		if _, err := os.Stat(testFile); !os.IsNotExist(err) {
-			pkgs, err := lookupPkgs(*o.BuildOpts.Env, "", pkg)
+			pkgs, err := lookupPkgs(*env, "", pkg)
 			if err != nil {
 				t.Fatalf("Failed to look up package %q: %v", pkg, err)
 			}
@@ -141,25 +132,33 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		}
 	}
 
-	// Add some necessary commands to the VM.
-	o.BuildOpts.AddBusyBoxCommands("github.com/u-root/u-root/cmds/core/dhclient", "github.com/hugelgupf/vmtest/vminit/gouinit")
-	o.BuildOpts.AddCommands(uroot.BinaryCmds("cmd/test2json")...)
-
-	// Specify the custom gotest uinit, which will mount the 9P file system
-	// and run the tests from there.
-	o.BuildOpts.UinitCmd = "gouinit"
-
 	var uinitArgs []string
 	if len(vmCoverProfile) > 0 {
 		uinitArgs = append(uinitArgs, "-coverprofile=/testdata/coverage.profile")
 	}
-	o.QEMUOpts = append(o.QEMUOpts, qemu.WithAppendKernel(fmt.Sprintf("uroot.uinitargs=\"%s\"", strings.Join(uinitArgs, " "))))
-
+	initramfs := uroot.Opts{
+		Env: env,
+		Commands: append(
+			uroot.BusyBoxCmds(
+				"github.com/u-root/u-root/cmds/core/dhclient",
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/vminit/gouinit",
+			),
+			uroot.BinaryCmds("cmd/test2json")...),
+		InitCmd:   "init",
+		UinitCmd:  "gouinit",
+		UinitArgs: uinitArgs,
+		TempDir:   testtmp.TempDir(t),
+	}
 	tc := json2test.NewTestCollector()
-	o.QEMUOpts = append(o.QEMUOpts, qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle))
 
 	// Create the initramfs and start the VM.
-	vm := startVMTestVM(t, o)
+	vm := StartVM(t, append(
+		[]Opt{
+			WithMergedInitramfs(initramfs),
+			WithQEMUFn(qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle)),
+			WithSharedDir(sharedDir),
+		}, o...)...)
 
 	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
@@ -171,7 +170,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 
 	// Collect Go coverage.
 	if len(vmCoverProfile) > 0 {
-		cov, err := os.Open(filepath.Join(o.SharedDir, "coverage.profile"))
+		cov, err := os.Open(filepath.Join(sharedDir, "coverage.profile"))
 		if err != nil {
 			t.Fatalf("No coverage file shared from VM: %v", err)
 		}

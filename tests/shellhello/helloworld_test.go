@@ -7,5 +7,5 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.RunCmdsInVM(t, []string{`echo "Hello World"`}, nil)
+	vmtest.RunCmdsInVM(t, []string{`echo "Hello World"`})
 }
