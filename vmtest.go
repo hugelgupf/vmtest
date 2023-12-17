@@ -10,9 +10,12 @@ package vmtest
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/u-root/u-root/pkg/uroot"
 )
 
 // VMOptions are QEMU VM integration test options.
@@ -34,6 +37,95 @@ type VMOptions struct {
 	//
 	// If none is set, no directory is shared with the guest.
 	SharedDir string
+
+	// Initramfs is an optional u-root initramfs to build.
+	Initramfs *uroot.Opts
+}
+
+// MergeInitramfs merges initramfs build options. Commands and files will be merged.
+func (v *VMOptions) MergeInitramfs(buildOpts uroot.Opts) error {
+	if buildOpts.BaseArchive != nil {
+		return fmt.Errorf("BaseArchive must not be set: not supporting BaseArchive merging in vmtest")
+	}
+	if buildOpts.UseExistingInit {
+		return fmt.Errorf("BaseArchive not supported in vmtest")
+	}
+	if v.Initramfs == nil {
+		o := buildOpts
+		v.Initramfs = &o
+		return nil
+	}
+
+	if buildOpts.Env != nil && v.Initramfs.Env != nil {
+		if n, o := buildOpts.Env.Env(), v.Initramfs.Env.Env(); !reflect.DeepEqual(n, o) {
+			return fmt.Errorf("merging two different u-root Go build envs not supported")
+		}
+	} else if v.Initramfs.Env == nil && buildOpts.Env != nil {
+		v.Initramfs.Env = buildOpts.Env
+	}
+
+	if v.Initramfs.TempDir != "" && buildOpts.TempDir != "" {
+		return fmt.Errorf("merging u-root initramfs temp dirs not supported")
+	} else if v.Initramfs.TempDir == "" && buildOpts.TempDir != "" {
+		v.Initramfs.TempDir = buildOpts.TempDir
+	}
+
+	v.Initramfs.Commands = append(v.Initramfs.Commands, buildOpts.Commands...)
+	v.Initramfs.ExtraFiles = append(v.Initramfs.ExtraFiles, buildOpts.ExtraFiles...)
+	// InitCmd, DefaultShell, UinitCmd, and UinitArgs are overridden.
+	if buildOpts.InitCmd != "" {
+		v.Initramfs.InitCmd = buildOpts.InitCmd
+	}
+	if buildOpts.UinitCmd != "" {
+		v.Initramfs.UinitCmd = buildOpts.UinitCmd
+		v.Initramfs.UinitArgs = buildOpts.UinitArgs
+	}
+	if buildOpts.DefaultShell != "" {
+		v.Initramfs.DefaultShell = buildOpts.DefaultShell
+	}
+	return nil
+}
+
+// Opt is used to configure a VM.
+type Opt func(testing.TB, *VMOptions) error
+
+// WithName is the name of the VM, used for the serial console log output prefix.
+func WithName(name string) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		v.Name = name
+		return nil
+	}
+}
+
+// WithArch sets the guest architecture.
+func WithArch(arch qemu.Arch) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		v.GuestArch = arch
+		return nil
+	}
+}
+
+// WithQEMUFn adds QEMU options.
+func WithQEMUFn(fn ...qemu.Fn) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		v.QEMUOpts = append(v.QEMUOpts, fn...)
+		return nil
+	}
+}
+
+// WithMergedInitramfs merges o with already appended initramfs build options.
+func WithMergedInitramfs(o uroot.Opts) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		return v.MergeInitramfs(o)
+	}
+}
+
+// WithSharedDir shares a directory with the VM.
+func WithSharedDir(dir string) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		v.SharedDir = dir
+		return nil
+	}
 }
 
 // StartVM fills in some default options if not already provided, and starts a VM.
@@ -42,14 +134,28 @@ type VMOptions struct {
 // initramfs, or fills them in from VMTEST_QEMU, VMTEST_QEMU_ARCH,
 // VMTEST_KERNEL and VMTEST_INITRAMFS environment variables as is documented by
 // the qemu package.
-func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
+func StartVM(t testing.TB, opts ...Opt) *qemu.VM {
+	o := &VMOptions{
+		Name: t.Name(),
+	}
+
+	for _, opt := range opts {
+		if opt != nil {
+			if err := opt(t, o); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return startVM(t, o)
+}
+
+func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
 	// This is used by the console output logger in every t.Logf line to
 	// prefix console statements.
 	var consoleOutputName string
 	if len(o.Name) == 0 {
-		o.Name = t.Name()
 		// Unnamed VMs likely means there's only 1 VM in the test. No
 		// need to take up screen width with the test name.
 		consoleOutputName = "serial"
@@ -69,6 +175,9 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	}
 	if o.SharedDir != "" {
 		qopts = append(qopts, qemu.P9Directory(o.SharedDir, false, ""))
+	}
+	if o.Initramfs != nil {
+		qopts = append(qopts, uqemu.WithUrootInitramfsT(t, *o.Initramfs))
 	}
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.

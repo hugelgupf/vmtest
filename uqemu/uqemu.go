@@ -22,10 +22,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog"
+	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 )
@@ -71,4 +75,10 @@ func WithUrootInitramfs(logger ulog.Logger, uopts uroot.Opts, initrdPath string)
 		opts.Initramfs = initrdPath
 		return nil
 	}
+}
+
+// WithUrootInitramfsT adds an initramfs to the VM using a logger for t and
+// placing the initramfs in a test-created temp dir.
+func WithUrootInitramfsT(t testing.TB, initramfs uroot.Opts) qemu.Fn {
+	return WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(testtmp.TempDir(t), "initramfs.cpio"))
 }

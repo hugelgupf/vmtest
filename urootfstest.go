@@ -9,12 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/testtmp"
-	"github.com/hugelgupf/vmtest/uqemu"
-	"github.com/u-root/u-root/pkg/ulog/ulogtest"
-	"github.com/u-root/u-root/pkg/uroot"
 )
 
 // startVMTestVM starts u-root-based vmtest VMs that conform to vmtest's
@@ -25,7 +19,7 @@ import (
 //   - kernel coverage,
 //   - TODO: tests passed marker.
 //   - TODO: checking exit status of tests in VM.
-func startVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
+/*func startVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	// Delete any previous coverage data.
 	if _, ok := instance[t.Name()]; !ok {
 		testCoveragePath := filepath.Join(coveragePath, t.Name())
@@ -40,58 +34,7 @@ func startVMTestVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 		}
 	})
 	return StartUrootFSVM(t, o)
-}
-
-// UrootFSOptions configures a QEMU VM integration test that uses an
-// automatically built u-root initramfs as the root file system.
-type UrootFSOptions struct {
-	// Options are VM configuration options.
-	VMOptions
-
-	// BuildOpts are u-root initramfs build options.
-	//
-	// They are used if the test needs to generate an initramfs.
-	// Fields that are not set are populated as possible.
-	BuildOpts uroot.Opts
-}
-
-// StartUrootFSVM creates a u-root initramfs with the given options and starts
-// a QEMU VM with the created u-root file system.
-//
-// If left unfilled, default VMOptions use VMTEST_QEMU, VMTEST_KERNEL, and
-// VMTEST_INITRAMFS_OVERRIDE to fill configuration as documented in the uqemu
-// package.
-//
-// If VMTEST_INITRAMFS_OVERRIDE is set, that initramfs overrides the options
-// set in this test. (This can be used to, for example, run the same test with
-// an initramfs built by bazel rules.)
-func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
-	SkipWithoutQEMU(t)
-
-	vmopts := o.VMOptions
-	vmopts.QEMUOpts = append(vmopts.QEMUOpts, WithUroot(t, o.BuildOpts))
-	return StartVM(t, &vmopts)
-}
-
-// WithUroot adds an initramfs to the VM with at least cmds/core/init and
-// cmds/core/elvish.
-func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.Fn {
-	// Always add init and elvish.
-	initramfs.AddBusyBoxCommands(
-		"github.com/u-root/u-root/cmds/core/init",
-		"github.com/u-root/u-root/cmds/core/elvish",
-	)
-	if len(initramfs.InitCmd) == 0 {
-		initramfs.InitCmd = "init"
-	}
-	if len(initramfs.DefaultShell) == 0 {
-		initramfs.DefaultShell = "elvish"
-	}
-	if len(initramfs.TempDir) == 0 {
-		initramfs.TempDir = testtmp.TempDir(t)
-	}
-	return uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(testtmp.TempDir(t), "initramfs.cpio"))
-}
+}*/
 
 // Tests are run from u-root/integration/{gotests,generic-tests}/.
 const coveragePath = "../coverage"

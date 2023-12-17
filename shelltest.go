@@ -12,6 +12,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
+	"github.com/u-root/u-root/pkg/uroot"
 )
 
 // RunCmdsInVM starts a VM and runs each command provided in testCmds in a
@@ -25,8 +26,8 @@ import (
 //
 //   - TODO: timeouts for individual individual commands.
 //   - TODO: It should check their exit status. Hahaha.
-func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
-	vm := StartVMAndRunCmds(t, testCmds, o)
+func RunCmdsInVM(t *testing.T, testCmds []string, o ...Opt) {
+	vm := StartVMAndRunCmds(t, testCmds, o...)
 
 	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
@@ -40,35 +41,32 @@ func RunCmdsInVM(t *testing.T, testCmds []string, o *UrootFSOptions) {
 // StartVMAndRunCmds starts a VM and runs each command provided in testCmds in
 // a shell in the VM. If the commands return, the VM will be shutdown.
 //
-// The VM can be configured with o. Env var configuration and defaults are as
-// in StartUrootFSVM.
+// The VM can be configured with o.
 //
 // Underneath, this generates an Elvish script with these commands. The script
 // is shared with the VM and run from a special init.
-func StartVMAndRunCmds(t *testing.T, testCmds []string, o *UrootFSOptions) *qemu.VM {
+func StartVMAndRunCmds(t *testing.T, testCmds []string, o ...Opt) *qemu.VM {
 	SkipWithoutQEMU(t)
 
-	if o == nil {
-		o = &UrootFSOptions{}
-	}
-	if o.SharedDir == "" {
-		o.SharedDir = testtmp.TempDir(t)
-	}
-	if len(o.BuildOpts.UinitCmd) > 0 {
-		t.Fatalf("RunCmdsInVM must be able to specify a uinit; one was already specified by caller: %s", o.BuildOpts.UinitCmd)
-	}
+	sharedDir := testtmp.TempDir(t)
 
 	// Generate Elvish shell script of test commands in o.SharedDir.
 	if len(testCmds) > 0 {
-		testFile := filepath.Join(o.SharedDir, "test.elv")
-
+		testFile := filepath.Join(sharedDir, "test.elv")
 		if err := os.WriteFile(testFile, []byte(strings.Join(testCmds, "\n")), 0o777); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	o.BuildOpts.AddBusyBoxCommands("github.com/hugelgupf/vmtest/vminit/shelluinit")
-	o.BuildOpts.UinitCmd = "shelluinit"
-
-	return startVMTestVM(t, o)
+	initramfs := uroot.Opts{
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/u-root/u-root/cmds/core/elvish",
+			"github.com/hugelgupf/vmtest/vminit/shelluinit",
+		),
+		InitCmd:  "init",
+		UinitCmd: "shelluinit",
+		TempDir:  testtmp.TempDir(t),
+	}
+	return StartVM(t, WithSharedDir(sharedDir), WithMergedInitramfs(initramfs))
 }
