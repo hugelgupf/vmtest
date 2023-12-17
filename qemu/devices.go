@@ -113,8 +113,8 @@ func P9Directory(dir string, boot bool, tag string) Fn {
 
 		// Expose the temp directory to QEMU
 		var deviceArgs string
-		switch opts.GuestArch() {
-		case GuestArchArm:
+		switch opts.Arch() {
+		case ArchArm:
 			deviceArgs = fmt.Sprintf("virtio-9p-device,fsdev=%s,mount_tag=%s", id, tag)
 		default:
 			deviceArgs = fmt.Sprintf("virtio-9p-pci,fsdev=%s,mount_tag=%s", id, tag)

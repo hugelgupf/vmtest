@@ -21,8 +21,8 @@ type VMOptions struct {
 
 	// GuestArch is a setup function that sets the architecture.
 	//
-	// The default is qemu.GuestArchUseEnvv, which will use VMTEST_QEMU_ARCH.
-	GuestArch qemu.ArchFn
+	// The default is qemu.ArchUseEnvv, which will use VMTEST_ARCH.
+	GuestArch qemu.Arch
 
 	// QEMUOpts are options to the QEMU VM.
 	QEMUOpts []qemu.Fn
@@ -57,11 +57,6 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 		consoleOutputName = fmt.Sprintf("%s serial", o.Name)
 	}
 
-	arch := o.GuestArch
-	if arch == nil {
-		arch = qemu.GuestArchUseEnvv
-	}
-
 	qopts := []qemu.Fn{
 		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(consoleOutputName, t.Logf)),
 		// Tests use this cmdline arg to identify they are running inside a
@@ -74,7 +69,7 @@ func StartVM(t testing.TB, o *VMOptions) *qemu.VM {
 	}
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.
-	vm, err := qemu.Start(arch, append(qopts, o.QEMUOpts...)...)
+	vm, err := qemu.Start(o.GuestArch, append(qopts, o.QEMUOpts...)...)
 	if err != nil {
 		t.Fatalf("Failed to start QEMU VM %s: %v", o.Name, err)
 	}

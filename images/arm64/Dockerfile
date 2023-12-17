@@ -43,4 +43,4 @@ COPY --from=qemu /zqemu /zqemu
 COPY --from=base /root/linux/arch/arm64/boot/Image /home/circleci/Image
 ENV VMTEST_KERNEL "/home/circleci/Image"
 ENV VMTEST_QEMU "/zqemu/bin/qemu-system-aarch64 -machine virt -cpu max -m 1G -L /zqemu/pc-bios"
-ENV VMTEST_GOARCH "arm64"
+ENV VMTEST_ARCH "arm64"

@@ -13,7 +13,7 @@
 //
 // Other environment variables:
 //
-//	VMTEST_QEMU_ARCH (used when GuestArch is empty or GuestArchUseEnvv is set)
+//	VMTEST_ARCH (used when Arch is empty or GuestArchUseEnvv is set)
 //	VMTEST_KERNEL (used when Options.Kernel is empty)
 //	VMTEST_INITRAMFS (used when Options.Initramfs is empty)
 package qemu
@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -36,45 +37,49 @@ import (
 // ErrKernelRequiredForArgs is returned when KernelArgs is populated but Kernel is empty.
 var ErrKernelRequiredForArgs = errors.New("KernelArgs can only be used when Kernel is also specified due to how QEMU bootloader works")
 
-// ErrNoGuestArch is returned when neither GuestArch nor VMTEST_QEMU_ARCH are set.
-var ErrNoGuestArch = errors.New("no QEMU guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
+// ErrNoArch is returned when neither Arch nor VMTEST_ARCH are set.
+var ErrNoArch = errors.New("no guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
 
-// ErrUnsupportedGuestArch is returned when an unsupported guest architecture value is used.
-var ErrUnsupportedGuestArch = errors.New("unsupported QEMU guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
+// ErrUnsupportedArch is returned when an unsupported guest architecture value is used.
+var ErrUnsupportedArch = errors.New("unsupported guest architecture specified -- guest arch is required to decide some QEMU command-line arguments")
 
-// GuestArch is the QEMU guest architecture.
-type GuestArch string
+// Arch is the QEMU guest architecture.
+type Arch string
 
 const (
-	GuestArchUseEnvv GuestArch = ""
-	GuestArchX8664   GuestArch = "x86_64"
-	GuestArchI386    GuestArch = "i386"
-	GuestArchAarch64 GuestArch = "aarch64"
-	GuestArchArm     GuestArch = "arm"
+	ArchUseEnvv Arch = ""
+	ArchAMD64   Arch = "amd64"
+	ArchI386    Arch = "i386"
+	ArchArm64   Arch = "arm64"
+	ArchArm     Arch = "arm"
 )
 
-// SupportedGuestArches are the supported guest architecture values.
-var SupportedGuestArches = []GuestArch{
-	GuestArchX8664,
-	GuestArchI386,
-	GuestArchAarch64,
-	GuestArchArm,
+// SupportedArches are the supported guest architecture values.
+var SupportedArches = []Arch{
+	ArchAMD64,
+	ArchI386,
+	ArchArm64,
+	ArchArm,
+}
+
+// GuestArch returns the Guest architecture under test. Either VMTEST_ARCH or
+// runtime.GOARCH.
+func GuestArch() Arch {
+	if env := Arch(os.Getenv("VMTEST_ARCH")); slices.Contains(SupportedArches, env) {
+		return env
+	}
+	return Arch(runtime.GOARCH)
 }
 
 // Valid returns whether the guest arch is a supported guest arch value.
-func (g GuestArch) Valid() bool {
-	return slices.Contains(SupportedGuestArches, g)
-}
-
-// Set implements ArchFn for GuestArch.
-func (g GuestArch) Setup(alloc *IDAllocator, opts *Options) error {
-	return nil
+func (g Arch) Valid() bool {
+	return slices.Contains(SupportedArches, g)
 }
 
 // Arch returns the guest architecture.
-func (g GuestArch) Arch() GuestArch {
-	if g == GuestArchUseEnvv {
-		g = GuestArch(os.Getenv("VMTEST_QEMU_ARCH"))
+func (g Arch) Arch() Arch {
+	if g == ArchUseEnvv {
+		g = GuestArch()
 	}
 	return g
 }
@@ -83,12 +88,6 @@ func (g GuestArch) Arch() GuestArch {
 //
 // Fns rely on a QEMU architecture already having been determined.
 type Fn func(*IDAllocator, *Options) error
-
-// ArchFn is a Fn that can modify Options and set the architecture. It runs before any other Fn.
-type ArchFn interface {
-	Setup(*IDAllocator, *Options) error
-	Arch() GuestArch
-}
 
 // WithQEMUCommand sets a QEMU command. It's expected to provide a QEMU binary
 // and optionally some arguments.
@@ -158,7 +157,7 @@ func WithTask(t ...Task) Fn {
 }
 
 // OptionsFor evaluates the given config functions and returns an Options object.
-func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
+func OptionsFor(arch Arch, fns ...Fn) (*Options, error) {
 	alloc := NewIDAllocator()
 	o := &Options{
 		QEMUCommand: os.Getenv("VMTEST_QEMU"),
@@ -168,10 +167,7 @@ func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
 		QEMUArgs: []string{"-nographic"},
 	}
 
-	if err := o.setArch(archFn.Arch()); err != nil {
-		return nil, err
-	}
-	if err := archFn.Setup(alloc, o); err != nil {
+	if err := o.setArch(arch.Arch()); err != nil {
 		return nil, err
 	}
 
@@ -187,7 +183,7 @@ func OptionsFor(archFn ArchFn, fns ...Fn) (*Options, error) {
 //
 // SerialOutput will be relayed only if VM.Wait is also called some time after
 // the VM starts.
-func Start(arch ArchFn, fns ...Fn) (*VM, error) {
+func Start(arch Arch, fns ...Fn) (*VM, error) {
 	return StartContext(context.Background(), arch, fns...)
 }
 
@@ -195,7 +191,7 @@ func Start(arch ArchFn, fns ...Fn) (*VM, error) {
 //
 // When the context is done, the QEMU subprocess will be killed and all
 // associated goroutines cleaned up as long as VM.Wait() is called.
-func StartContext(ctx context.Context, arch ArchFn, fns ...Fn) (*VM, error) {
+func StartContext(ctx context.Context, arch Arch, fns ...Fn) (*VM, error) {
 	o, err := OptionsFor(arch, fns...)
 	if err != nil {
 		return nil, err
@@ -209,7 +205,7 @@ type Options struct {
 	//
 	// Some device decisions are made based on the architecture.
 	// If empty, VMTEST_QEMU_ARCH env var will be used.
-	arch GuestArch
+	arch Arch
 
 	// QEMUCommand is QEMU binary to invoke and some additonal args.
 	//
@@ -300,8 +296,8 @@ func newNotifications() *Notifications {
 	}
 }
 
-// GuestArch returns the guest architecture.
-func (o *Options) GuestArch() GuestArch {
+// Arch returns the guest architecture.
+func (o *Options) Arch() Arch {
 	return o.arch
 }
 
@@ -366,12 +362,12 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 	return vm, nil
 }
 
-func (o *Options) setArch(arch GuestArch) error {
+func (o *Options) setArch(arch Arch) error {
 	if len(arch) == 0 {
-		return ErrNoGuestArch
+		return ErrNoArch
 	}
 	if !arch.Valid() {
-		return fmt.Errorf("%w: %s", ErrUnsupportedGuestArch, arch)
+		return fmt.Errorf("%w: %s", ErrUnsupportedArch, arch)
 	}
 	o.arch = arch
 	return nil

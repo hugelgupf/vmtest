@@ -15,11 +15,15 @@ templates:
     docker:
       - image: ghcr.io/hugelgupf/vmtest/ci-arm64:main
     working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
+    environment:
+      - VMTEST_ARCH: arm64
 
   integration-arm-template: &integration-arm-template
     docker:
       - image: ghcr.io/hugelgupf/vmtest/ci-arm:main
     working_directory: /home/circleci/go/src/github.com/hugelgupf/vmtest
+    environment:
+      - VMTEST_ARCH: arm
 
   test-template: &test-template
     steps:

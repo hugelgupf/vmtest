@@ -16,7 +16,6 @@ import (
 	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
-	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uroot"
 	"golang.org/x/tools/go/packages"
@@ -37,7 +36,7 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 // pass/fail result of each individual test.
 //
 // RunGoTestsInVM runs tests and benchmarks, but not fuzz tests. Guest test
-// architecture can be set with VMTEST_GOARCH; arm64 and amd64 are supported.
+// architecture can be set with VMTEST_ARCH; arm, arm64 and amd64 are supported.
 //
 // The kernel can be provided via UrootFSOptions or VMTEST_KERNEL env var. The
 // test environment in the VM is very minimal. If a test depends on other
@@ -70,7 +69,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	}
 
 	// Set up u-root build options.
-	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(uqemu.GuestGOARCH()))
+	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(o.VMOptions.GuestArch.Arch())))
 	o.BuildOpts.Env = env
 
 	// Statically build tests and add them to the temporary directory.
