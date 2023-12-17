@@ -13,9 +13,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"text/template"
 
 	"dagger.io/dagger"
@@ -115,19 +117,48 @@ func run() error {
 }
 
 func runNatively(ctx context.Context, artifacts *dagger.Directory, config *TestEnvConfig, args []string) error {
-	tmp, err := os.MkdirTemp(".", "ci-testing")
+	var tmpDir string
+
+	if !*keepArtifacts {
+		c := make(chan os.Signal, 1)
+		defer close(c)
+
+		signal.Notify(c, os.Interrupt)
+		defer signal.Stop(c)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case <-c:
+				os.RemoveAll(tmpDir)
+
+			case <-ctx.Done():
+				return
+			}
+		}()
+
+		defer wg.Wait()
+	}
+
+	// Cancel before wg.Wait(), so goroutine can exit.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tmpDir, err := os.MkdirTemp(".", "ci-testing")
 	if err != nil {
 		return fmt.Errorf("unable to create tmp dir: %w", err)
 	}
 	if !*keepArtifacts {
-		defer os.RemoveAll(tmp)
+		defer os.RemoveAll(tmpDir)
 	}
 
-	if ok, err := artifacts.Export(ctx, tmp); !ok || err != nil {
+	if ok, err := artifacts.Export(ctx, tmpDir); !ok || err != nil {
 		return fmt.Errorf("failed artifact export: %w", err)
 	}
 
-	tmp, err = filepath.Abs(tmp)
+	tmp, err := filepath.Abs(tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not retrieve absolute path: %w", err)
 	}
