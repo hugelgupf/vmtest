@@ -22,7 +22,7 @@ RUN apt-get update &&                          \
 WORKDIR /root
 
 # Build linux
-RUN git clone --depth=1 --branch=v6.0 https://github.com/torvalds/linux;
+RUN git clone --depth=1 --branch=v6.1.68 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
 
 # Copy config file
 COPY config_linux.txt linux/.config
