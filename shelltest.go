@@ -68,5 +68,9 @@ func StartVMAndRunCmds(t *testing.T, testCmds []string, o ...Opt) *qemu.VM {
 		UinitCmd: "shelluinit",
 		TempDir:  testtmp.TempDir(t),
 	}
-	return StartVM(t, WithSharedDir(sharedDir), WithMergedInitramfs(initramfs))
+	return StartVM(t, append([]Opt{
+		WithSharedDir(sharedDir),
+		WithMergedInitramfs(initramfs),
+		CollectKernelCoverage(),
+	}, o...)...)
 }

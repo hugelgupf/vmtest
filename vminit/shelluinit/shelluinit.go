@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/vminit/common"
 	"golang.org/x/sys/unix"
 )
@@ -22,7 +23,7 @@ func runTest() error {
 		return err
 	}
 	defer cleanup()
-	defer common.CollectKernelCoverage()
+	defer guest.CollectKernelCoverage()
 
 	// Run the test script test.elv
 	test := "/testdata/test.elv"
