@@ -1,3 +1,4 @@
+// Command eventemitter emits guest events for a qemu/ test.
 package main
 
 import (
@@ -12,7 +13,7 @@ import (
 
 var skipClose = flag.Bool("skip-close", false, "Skip closing event channel")
 
-func Main() {
+func realMain() error {
 	f, err := guest.SerialEventChannel[event.Event]("test")
 	if err != nil {
 		log.Fatal(err)
@@ -26,14 +27,17 @@ func Main() {
 		// Variable length string would mess up a PTY once larger than
 		// window size.
 		if err := f.Emit(event.Event{ID: i, String: strings.Repeat("a", i)}); err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
+	return nil
 }
 
 func main() {
 	flag.Parse()
-	Main()
+	if err := realMain(); err != nil {
+		log.Fatal(err)
+	}
 
 	log.Println("TEST PASSED")
 

@@ -35,12 +35,12 @@ func NewInterVM() *InterVM {
 	}
 }
 
-// NetworkOpt returns additional QEMU command-line parameters based on the net
+// Opt returns additional QEMU command-line parameters based on the net
 // device ID.
-type NetworkOpt func(netdev string, id *qemu.IDAllocator) []string
+type Opt func(netdev string, id *qemu.IDAllocator) []string
 
 // WithPCAP captures network traffic and saves it to outputFile.
-func WithPCAP(outputFile string) NetworkOpt {
+func WithPCAP(outputFile string) Opt {
 	return func(netdev string, id *qemu.IDAllocator) []string {
 		return []string{
 			"-object",
@@ -50,7 +50,7 @@ func WithPCAP(outputFile string) NetworkOpt {
 }
 
 // NewVM returns a Device that can be used with a new QEMU VM.
-func (n *InterVM) NewVM(nopts ...NetworkOpt) qemu.Fn {
+func (n *InterVM) NewVM(nopts ...Opt) qemu.Fn {
 	if n == nil {
 		return nil
 	}

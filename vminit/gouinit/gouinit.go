@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Command gouinit runs Go tests in a guest VM.
 package main
 
 import (
@@ -30,9 +31,13 @@ var (
 
 func walkTests(testRoot string, fn func(string, string)) error {
 	return filepath.Walk(testRoot, func(path string, info os.FileInfo, err error) error {
-		if !info.Mode().IsRegular() || !strings.HasSuffix(path, ".test") || err != nil {
+		if !info.Mode().IsRegular() || !strings.HasSuffix(path, ".test") {
 			return nil
 		}
+		if err != nil {
+			return err
+		}
+
 		t2, err := filepath.Rel(testRoot, path)
 		if err != nil {
 			return err
@@ -88,7 +93,7 @@ func runTest() error {
 	}
 	defer testResultEvents.Close()
 
-	walkTests("/testdata/tests", func(path, pkgName string) {
+	return walkTests("/testdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
 		ctx, cancel := context.WithTimeout(context.Background(), individualTestTimeout+500*time.Millisecond)
 		defer cancel()
@@ -150,7 +155,6 @@ func runTest() error {
 			log.Printf("Could not append to cover file: %v", err)
 		}
 	})
-	return nil
 }
 
 func main() {

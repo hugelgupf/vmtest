@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Package common has commonly used functions in guest VM test runners.
 package common
 
 import (
@@ -124,5 +125,5 @@ func MountSharedDir() (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to mount test directory: %v", err)
 	}
-	return func() { mp.Unmount(0) }, nil
+	return func() { _ = mp.Unmount(0) }, nil
 }

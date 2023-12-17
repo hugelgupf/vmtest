@@ -30,6 +30,8 @@ import (
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 )
 
+// ErrOutputFileSpecified is returned when uroot.Opts are supplied that already
+// have an initramfs file.
 var ErrOutputFileSpecified = errors.New("initramfs output file must be left unspecified")
 
 // WithUrootInitramfs builds the specified initramfs and attaches it to the QEMU VM.
