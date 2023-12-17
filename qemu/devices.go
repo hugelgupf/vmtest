@@ -157,6 +157,19 @@ func ArbitraryArgs(aa ...string) Fn {
 	}
 }
 
+// HaltOnKernelPanic passes args to QEMU and kernel to halt when the kernel
+// panics.
+//
+// Linux's default behavior is to hang forever, which is not great test
+// behavior.
+func HaltOnKernelPanic() Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.AppendQEMU("-no-reboot")
+		opts.AppendKernel("panic=-1")
+		return nil
+	}
+}
+
 func replaceCtl(str []byte) []byte {
 	for i, c := range str {
 		if c == 9 || c == 10 {
