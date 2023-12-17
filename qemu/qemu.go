@@ -13,7 +13,7 @@
 //
 // Other environment variables:
 //
-//	VMTEST_ARCH (used when Arch is empty or GuestArchUseEnvv is set)
+//	VMTEST_ARCH (used when Arch is empty or ArchUseEnvv is set)
 //	VMTEST_KERNEL (used when Options.Kernel is empty)
 //	VMTEST_INITRAMFS (used when Options.Initramfs is empty)
 package qemu
@@ -46,12 +46,22 @@ var ErrUnsupportedArch = errors.New("unsupported guest architecture specified --
 // Arch is the QEMU guest architecture.
 type Arch string
 
+// Architecture values are derived from GOARCH values.
 const (
+	// ArchUseEnvv will derive the architecture from the VMTEST_ARCH env var.
 	ArchUseEnvv Arch = ""
-	ArchAMD64   Arch = "amd64"
-	ArchI386    Arch = "i386"
-	ArchArm64   Arch = "arm64"
-	ArchArm     Arch = "arm"
+
+	// ArchAMD64 is the x86 64bit architecture.
+	ArchAMD64 Arch = "amd64"
+
+	// ArchI386 is the x86 32bit architecture.
+	ArchI386 Arch = "i386"
+
+	// ArchArm64 is the aarch64 architecture.
+	ArchArm64 Arch = "arm64"
+
+	// ArchArm is the arm 32bit architecture.
+	ArchArm Arch = "arm"
 )
 
 // SupportedArches are the supported guest architecture values.
@@ -352,7 +362,7 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		_ = vm.wg.Wait()
 		return nil, err
 	}
-	vm.notifs.VMStarted()
+	vm.notifs.vmStarted()
 
 	// Close tty in parent, so that when child exits, the last reference to
 	// it is gone and Console.Expect* calls automatically exit.
@@ -466,7 +476,7 @@ func (v *VM) Signal(sig os.Signal) error {
 // Wait waits for the VM to exit and expects EOF from the expect console.
 func (v *VM) Wait() error {
 	err := v.cmd.Wait()
-	v.notifs.VMExited(err)
+	v.notifs.vmExited(err)
 	if _, cerr := v.Console.ExpectEOF(); cerr != nil && err == nil {
 		err = cerr
 	}
@@ -495,13 +505,13 @@ func (v *VM) CmdlineQuoted() string {
 
 type notifications []*Notifications
 
-func (n notifications) VMStarted() {
+func (n notifications) vmStarted() {
 	for _, m := range n {
 		close(m.VMStarted)
 	}
 }
 
-func (n notifications) VMExited(err error) {
+func (n notifications) vmExited(err error) {
 	for _, m := range n {
 		m.VMExited <- err
 		close(m.VMExited)

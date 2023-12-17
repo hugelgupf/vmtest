@@ -73,7 +73,6 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 	o.BuildOpts.Env = env
 
 	// Statically build tests and add them to the temporary directory.
-	var tests []string
 	testDir := filepath.Join(o.SharedDir, "tests")
 
 	if len(vmCoverProfile) > 0 {
@@ -116,8 +115,6 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o *UrootFSOptions) {
 		// executable is not generated, so it is not included in the
 		// `tests` list.
 		if _, err := os.Stat(testFile); !os.IsNotExist(err) {
-			tests = append(tests, pkg)
-
 			pkgs, err := lookupPkgs(*o.BuildOpts.Env, "", pkg)
 			if err != nil {
 				t.Fatalf("Failed to look up package %q: %v", pkg, err)

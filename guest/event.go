@@ -99,8 +99,10 @@ func (e *Emitter[T]) Close() error {
 	e.w.Close()
 	err := <-e.errCh
 
-	e.sendEvent(eventchannel.Event[T]{GuestAction: eventchannel.ActionDone})
-	e.serial.Sync()
+	if werr := e.sendEvent(eventchannel.Event[T]{GuestAction: eventchannel.ActionDone}); werr != nil && err != nil {
+		err = werr
+	}
+	_ = e.serial.Sync()
 	e.serial.Close()
 	return err
 }

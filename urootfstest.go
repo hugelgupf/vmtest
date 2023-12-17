@@ -73,6 +73,8 @@ func StartUrootFSVM(t testing.TB, o *UrootFSOptions) *qemu.VM {
 	return StartVM(t, &vmopts)
 }
 
+// WithUroot adds an initramfs to the VM with at least cmds/core/init and
+// cmds/core/elvish.
 func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.Fn {
 	// Always add init and elvish.
 	initramfs.AddBusyBoxCommands(
@@ -91,7 +93,7 @@ func WithUroot(t testing.TB, initramfs uroot.Opts) qemu.Fn {
 	return uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(testtmp.TempDir(t), "initramfs.cpio"))
 }
 
-// Tests are run from u-root/integration/{gotests,generic-tests}/
+// Tests are run from u-root/integration/{gotests,generic-tests}/.
 const coveragePath = "../coverage"
 
 // Keeps track of the number of instances per test so we do not overlap
@@ -111,8 +113,5 @@ func saveCoverage(t testing.TB, path string) error {
 	if err := os.MkdirAll(uniqueCoveragePath, 0o770); err != nil {
 		return err
 	}
-	if err := os.Rename(path, filepath.Join(uniqueCoveragePath, filepath.Base(path))); err != nil {
-		return err
-	}
-	return nil
+	return os.Rename(path, filepath.Join(uniqueCoveragePath, filepath.Base(path)))
 }

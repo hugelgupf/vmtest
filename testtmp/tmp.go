@@ -68,11 +68,14 @@ func TempDir(t testing.TB) string {
 		if rootErr == nil {
 			tempDirs[t.Name()] = rootDir
 			t.Cleanup(func() {
-				if t.Failed() {
+				switch {
+				case t.Failed():
 					t.Logf("Keeping temp dir due to test failure: %s", rootDir)
-				} else if *keepTempDir {
+
+				case *keepTempDir:
 					t.Logf("Keeping temp dir as requested by --keep-temp-dir: %s", rootDir)
-				} else {
+
+				default:
 					if err := os.RemoveAll(rootDir); err != nil {
 						t.Errorf("Failed to remove temporary directory %s: %v", rootDir, err)
 					}

@@ -10,8 +10,10 @@ import (
 	"sync"
 )
 
+// TestState are the possible Go test states.
 type TestState string
 
+// These states are taken from Go.
 const (
 	StateSkip    TestState = "skip"
 	StateFail    TestState = "fail"
@@ -29,8 +31,10 @@ var actionToState = map[Action]TestState{
 	Continue: StateRunning,
 }
 
+// TestKind are the Go test types.
 type TestKind int
 
+// The two Go test types, test and benchmark.
 const (
 	KindTest TestKind = iota
 	KindBenchmark
@@ -43,6 +47,7 @@ type TestResult struct {
 	FullOutput string
 }
 
+// TestCollector holds Go test result information.
 type TestCollector struct {
 	mu sync.Mutex
 
@@ -95,5 +100,5 @@ func (tc *TestCollector) Handle(e TestEvent) {
 		}
 		t.State = s
 	}
-	t.FullOutput = t.FullOutput + e.Output
+	t.FullOutput += e.Output
 }

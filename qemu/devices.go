@@ -217,6 +217,8 @@ func (c ptmClosedErrorConverter) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// ErrEventChannelMissingDoneEvent is returned when the final event channel
+// event is not received.
 var ErrEventChannelMissingDoneEvent = errors.New("never received the final event channel event (did you call Close() on the guest event channel emitter?)")
 
 // EventChannel adds a virtio-serial-backed channel between host and guest to

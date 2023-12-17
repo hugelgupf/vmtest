@@ -1,3 +1,4 @@
+// Package qemutest1 is just a test program for qemu/ tests.
 package main
 
 import (
