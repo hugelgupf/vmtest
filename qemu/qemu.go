@@ -318,11 +318,7 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		return nil, err
 	}
 
-	var eopt []expect.ConsoleOpt
-	for _, serial := range o.SerialOutput {
-		eopt = append(eopt, expect.WithStdout(serial), expect.WithCloser(serial))
-	}
-	c, err := expect.NewConsole(eopt...)
+	c, err := expect.NewConsole()
 	if err != nil {
 		return nil, err
 	}
@@ -349,10 +345,14 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		vm.notifs = append(vm.notifs, n)
 	}
 
+	writers := []io.Writer{c.Tty()}
+	for _, serial := range o.SerialOutput {
+		writers = append(writers, serial)
+	}
 	cmd := exec.CommandContext(ctx, cmdline[0], cmdline[1:]...)
 	cmd.Stdin = c.Tty()
-	cmd.Stdout = c.Tty()
-	cmd.Stderr = c.Tty()
+	cmd.Stdout = io.MultiWriter(writers...)
+	cmd.Stderr = io.MultiWriter(writers...)
 	cmd.ExtraFiles = o.ExtraFiles
 	if err := cmd.Start(); err != nil {
 		// Cancel tasks.
@@ -363,10 +363,6 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		return nil, err
 	}
 	vm.notifs.vmStarted()
-
-	// Close tty in parent, so that when child exits, the last reference to
-	// it is gone and Console.Expect* calls automatically exit.
-	c.Tty().Close()
 
 	vm.cmd = cmd
 	return vm, nil
@@ -477,10 +473,15 @@ func (v *VM) Signal(sig os.Signal) error {
 func (v *VM) Wait() error {
 	err := v.cmd.Wait()
 	v.notifs.vmExited(err)
+	v.Console.Tty().Close()
 	if _, cerr := v.Console.ExpectEOF(); cerr != nil && err == nil {
 		err = cerr
 	}
 	v.Console.Close()
+
+	for _, w := range v.Options.SerialOutput {
+		w.Close()
+	}
 
 	v.cancel()
 	if werr := v.wg.Wait(); werr != nil && err == nil {
