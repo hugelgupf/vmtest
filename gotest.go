@@ -46,7 +46,7 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 // directories).
 //
 // Coverage from the Go tests is collected if a coverage file name is specified
-// via the UROOT_QEMU_COVERPROFILE env var.
+// via the VMTEST_GO_PROFILE env var.
 //
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
 //   - TODO: specify timeouts for individual tests.
@@ -55,9 +55,9 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 	SkipWithoutQEMU(t)
 
 	sharedDir := testtmp.TempDir(t)
-	vmCoverProfile, ok := os.LookupEnv("UROOT_QEMU_COVERPROFILE")
+	vmCoverProfile, ok := os.LookupEnv("VMTEST_GO_PROFILE")
 	if !ok {
-		t.Log("QEMU test coverage is not collected unless UROOT_QEMU_COVERPROFILE is set")
+		t.Log("In-guest Go test coverage is not collected unless VMTEST_GO_PROFILE is set")
 	}
 
 	// Set up u-root build options.
