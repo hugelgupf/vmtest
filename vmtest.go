@@ -16,6 +16,8 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/u-root/pkg/uroot"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 // VMOptions are QEMU VM integration test options.
@@ -40,6 +42,32 @@ type VMOptions struct {
 
 	// Initramfs is an optional u-root initramfs to build.
 	Initramfs *uroot.Opts
+}
+
+func mergeAndDedup(s, t []string) []string {
+	m := make(map[string]struct{})
+	for _, v := range s {
+		m[v] = struct{}{}
+	}
+	for _, v := range t {
+		m[v] = struct{}{}
+	}
+	return maps.Keys(m)
+}
+
+func mergeCommands(u, v []uroot.Commands) []uroot.Commands {
+	merged := u
+	for _, cmdsv := range v {
+		i := slices.IndexFunc(u, func(cmdsu uroot.Commands) bool {
+			return cmdsu.Builder == cmdsv.Builder
+		})
+		if i == -1 {
+			merged = append(merged, cmdsv)
+		} else {
+			u[i].Packages = mergeAndDedup(u[i].Packages, cmdsv.Packages)
+		}
+	}
+	return merged
 }
 
 // MergeInitramfs merges initramfs build options. Commands and files will be merged.
@@ -70,7 +98,7 @@ func (v *VMOptions) MergeInitramfs(buildOpts uroot.Opts) error {
 		v.Initramfs.TempDir = buildOpts.TempDir
 	}
 
-	v.Initramfs.Commands = append(v.Initramfs.Commands, buildOpts.Commands...)
+	v.Initramfs.Commands = mergeCommands(v.Initramfs.Commands, buildOpts.Commands)
 	v.Initramfs.ExtraFiles = append(v.Initramfs.ExtraFiles, buildOpts.ExtraFiles...)
 	// InitCmd, DefaultShell, UinitCmd, and UinitArgs are overridden.
 	if buildOpts.InitCmd != "" {
