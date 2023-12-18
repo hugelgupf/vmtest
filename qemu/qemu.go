@@ -16,6 +16,7 @@
 //	VMTEST_ARCH (used when Arch is empty or ArchUseEnvv is set)
 //	VMTEST_KERNEL (used when Options.Kernel is empty)
 //	VMTEST_INITRAMFS (used when Options.Initramfs is empty)
+//	VMTEST_TIMEOUT (used when Options.VMTimeout is empty)
 package qemu
 
 import (
@@ -168,11 +169,20 @@ func WithTask(t ...Task) Fn {
 
 // OptionsFor evaluates the given config functions and returns an Options object.
 func OptionsFor(arch Arch, fns ...Fn) (*Options, error) {
-	alloc := NewIDAllocator()
+	var vmTimeout time.Duration
+	if d := os.Getenv("VMTEST_TIMEOUT"); len(d) > 0 {
+		var err error
+		vmTimeout, err = time.ParseDuration(d)
+		if err != nil {
+			return nil, fmt.Errorf("invalid VMTEST_TIMEOUT value: %w", err)
+		}
+	}
+
 	o := &Options{
 		QEMUCommand: os.Getenv("VMTEST_QEMU"),
 		Kernel:      os.Getenv("VMTEST_KERNEL"),
 		Initramfs:   os.Getenv("VMTEST_INITRAMFS"),
+		VMTimeout:   vmTimeout,
 		// Disable graphics by default.
 		QEMUArgs: []string{"-nographic"},
 	}
@@ -181,6 +191,7 @@ func OptionsFor(arch Arch, fns ...Fn) (*Options, error) {
 		return nil, err
 	}
 
+	alloc := NewIDAllocator()
 	for _, f := range fns {
 		if err := f(alloc, o); err != nil {
 			return nil, err
