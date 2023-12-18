@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"syscall"
@@ -178,6 +180,25 @@ func replaceCtl(str []byte) []byte {
 		}
 	}
 	return str
+}
+
+// ServeHTTP serves s on l until the VM guest exits.
+func ServeHTTP(s *http.Server, l net.Listener) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.Tasks = append(opts.Tasks, func(ctx context.Context, n *Notifications) error {
+			if err := s.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+			return nil
+		})
+		opts.Tasks = append(opts.Tasks, func(ctx context.Context, n *Notifications) error {
+			// Wait for VM exit.
+			<-n.VMExited
+			// Stop HTTP server.
+			return s.Close()
+		})
+		return nil
+	}
 }
 
 // LogSerialByLine processes serial output from the guest one line at a time

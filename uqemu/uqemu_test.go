@@ -10,15 +10,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/network"
 	"github.com/hugelgupf/vmtest/qemu/test/eventemitter/event"
+	"github.com/ncruces/go-fs/memfs"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 )
@@ -296,5 +301,54 @@ func TestKernelPanic(t *testing.T) {
 
 	if err := vm.Wait(); err != nil {
 		t.Fatalf("VM.Wait = %v", err)
+	}
+}
+
+func TestHTTPTask(t *testing.T) {
+	fs := memfs.Create()
+	_ = fs.Create("foobar", "text/plain", time.Now(), strings.NewReader("Hello, world!"))
+
+	// Serve HTTP on the host on a random port.
+	http.Handle("/", fs)
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	s := &http.Server{}
+	initramfs := uroot.Opts{
+		InitCmd:   "init",
+		UinitCmd:  "httpdownload",
+		UinitArgs: []string{"-url", fmt.Sprintf("http://192.168.0.2:%d/foobar", port)},
+		TempDir:   t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/u-root/u-root/cmds/core/dhclient",
+			"github.com/hugelgupf/vmtest/qemu/test/httpdownload",
+		),
+	}
+	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
+		WithUrootInitramfsT(t, initramfs),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.VirtioRandom(), // dhclient needs to generate a random number.
+		qemu.ServeHTTP(s, ln),
+		network.IPv4HostNetwork(&net.IPNet{
+			IP:   net.IP{192, 168, 0, 0},
+			Mask: net.CIDRMask(24, 32),
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	if _, err := vm.Console.ExpectString("Hello, world!"); err != nil {
+		t.Errorf("Error expecting I AM HERE: %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Errorf("Error waiting for VM to exit: %v", err)
 	}
 }
