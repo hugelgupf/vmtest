@@ -48,16 +48,6 @@ func RunCmdsInVM(t *testing.T, testCmds []string, o ...Opt) {
 func StartVMAndRunCmds(t *testing.T, testCmds []string, o ...Opt) *qemu.VM {
 	SkipWithoutQEMU(t)
 
-	sharedDir := testtmp.TempDir(t)
-
-	// Generate Elvish shell script of test commands in o.SharedDir.
-	if len(testCmds) > 0 {
-		testFile := filepath.Join(sharedDir, "test.elv")
-		if err := os.WriteFile(testFile, []byte(strings.Join(testCmds, "\n")), 0o777); err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	initramfs := uroot.Opts{
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
@@ -68,8 +58,18 @@ func StartVMAndRunCmds(t *testing.T, testCmds []string, o ...Opt) *qemu.VM {
 		UinitCmd: "shelluinit",
 		TempDir:  testtmp.TempDir(t),
 	}
+
+	// Generate Elvish shell script of test commands in o.SharedDir.
+	if len(testCmds) > 0 {
+		testFile := filepath.Join(testtmp.TempDir(t), "test.elv")
+		if err := os.WriteFile(testFile, []byte(strings.Join(testCmds, "\n")), 0o777); err != nil {
+			t.Fatal(err)
+		}
+		initramfs.ExtraFiles = []string{
+			testFile + ":test.elv",
+		}
+	}
 	return StartVM(t, append([]Opt{
-		WithSharedDir(sharedDir),
 		WithMergedInitramfs(initramfs),
 		CollectKernelCoverage(),
 	}, o...)...)

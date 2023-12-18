@@ -6,7 +6,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -26,9 +25,17 @@ func runTest() error {
 	defer guest.CollectKernelCoverage()
 
 	// Run the test script test.elv
-	test := "/testdata/test.elv"
-	if _, err := os.Stat(test); os.IsNotExist(err) {
-		return errors.New("could not find any test script to run")
+	var test string
+	for _, script := range []string{"/test.elv", "/testdata/test.elv"} {
+		if _, err := os.Stat(script); err == nil {
+			test = script
+			continue
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	if test == "" {
+		return fmt.Errorf("could not find test script")
 	}
 	cmd := exec.Command("elvish", test)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
