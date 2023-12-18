@@ -10,11 +10,14 @@ package vmtest
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -205,7 +208,13 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 		qopts = append(qopts, qemu.P9Directory(o.SharedDir, false, ""))
 	}
 	if o.Initramfs != nil {
-		qopts = append(qopts, uqemu.WithUrootInitramfsT(t, *o.Initramfs))
+		// When possible, make the initramfs available to the guest in
+		// the shared directory.
+		dir := o.SharedDir
+		if len(dir) == 0 {
+			dir = testtmp.TempDir(t)
+		}
+		qopts = append(qopts, uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, *o.Initramfs, filepath.Join(dir, "initramfs.cpio")))
 	}
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.
