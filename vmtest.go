@@ -227,3 +227,10 @@ func SkipWithoutQEMU(t testing.TB) {
 		t.Skip("QEMU vmtest is skipped unless VMTEST_QEMU is set")
 	}
 }
+
+// SkipIfNotArch skips this test if VMTEST_ARCH is not one of the given values.
+func SkipIfNotArch(t testing.TB, allowed ...qemu.Arch) {
+	if arch := qemu.GuestArch(); !slices.Contains(allowed, arch) {
+		t.Skipf("Skipping test because arch is %s, not in allowed set %v", arch, allowed)
+	}
+}
