@@ -374,8 +374,23 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		return nil, err
 	}
 	vm.notifs.vmStarted()
-
 	vm.cmd = cmd
+	vm.wait = make(chan error)
+
+	// A goroutine to wait on exit, as we need to close Console.Tty() to
+	// unblock any waiting Expect calls.
+	go func() {
+		err := vm.cmd.Wait()
+		vm.notifs.vmExited(err)
+
+		// Close the pts end of the tty to unblock any potential
+		// readers on ptm (i.e. Expect calls).
+		//
+		// Don't call vm.Console.Close() as that also closes the ptm,
+		// which a blocking Expect call may still expect to read from.
+		vm.Console.Tty().Close()
+		vm.wait <- err
+	}()
 	return vm, nil
 }
 
@@ -455,6 +470,7 @@ type VM struct {
 	wg     errgroup.Group
 	notifs notifications
 	cancel func()
+	wait   chan error
 }
 
 // Cmdline is the command-line the VM was started with.
@@ -482,12 +498,9 @@ func (v *VM) Signal(sig os.Signal) error {
 
 // Wait waits for the VM to exit and expects EOF from the expect console.
 func (v *VM) Wait() error {
-	err := v.cmd.Wait()
-	v.notifs.vmExited(err)
-	v.Console.Tty().Close()
-	if _, cerr := v.Console.ExpectEOF(); cerr != nil && err == nil {
-		err = cerr
-	}
+	err := <-v.wait
+
+	// Close everything but the pts (which was already closed).
 	v.Console.Close()
 
 	for _, w := range v.Options.SerialOutput {

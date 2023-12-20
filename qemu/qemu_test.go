@@ -368,3 +368,33 @@ func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
 		t.Error("Error: Task did not get canceled")
 	}
 }
+
+func TestExpectTimesOut(t *testing.T) {
+	vm, err := Start(ArchAMD64,
+		WithQEMUCommand("sleep 30"),
+		WithVMTimeout(5*time.Second),
+		ClearQEMUArgs(),
+		// In case the user is calling this test with env vars set.
+		WithKernel(""),
+		WithInitramfs(""),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start 'VM': %v", err)
+	}
+	t.Logf("cmdline: %v", vm.CmdlineQuoted())
+
+	// TODO: Unfortunately the error we should expect doesn't indicate timeout.
+	if _, err := vm.Console.ExpectString("literally anything"); err == nil {
+		t.Errorf("Expect should have failed due to timeout")
+	} else {
+		t.Logf("error: %v", err)
+	}
+
+	var execErr *exec.ExitError
+	if err := vm.Wait(); !errors.As(err, &execErr) {
+		t.Errorf("Failed to wait for VM: %v", err)
+	}
+	if execErr.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+		t.Errorf("VM exited with %v, expected SIGKILL", err)
+	}
+}
