@@ -33,53 +33,72 @@ func main() {
 	}
 }
 
-type TestEnvConfig struct {
-	KernelContainer string
-	KernelPath      string
-	QEMUContainer   string
-	QEMUCmd         string
-	QEMUPath        string
-	BIOSPath        string
+// EnvConfig is a map of env var name -> variable config.
+type EnvConfig map[string]EnvVar
+
+// Config is a map of VMTEST_ARCH -> config for env vars to set up.
+type Config map[string]EnvConfig
+
+// EnvVar is the configuration for a template & files to fill in an environment
+// variable.
+type EnvVar struct {
+	// Container is the name of the container to pull files from.
+	Container string
+
+	// Template uses text/template syntax and is evaluated to become the env var.
+	//
+	// {{.$name}} can be used to refer to files extracted from the
+	// container, where $name is the key to one of the Files / Directories
+	// maps.
+	Template string
+
+	// Map of template variable name -> path in container
+	Files map[string]string
+
+	// Map of template variable name -> path in container
+	Directories map[string]string
 }
 
-func (tc *TestEnvConfig) RegisterFlags(f *flag.FlagSet) {
-	// Note the default value is whatever is in tc already.
-	f.StringVar(&tc.KernelContainer, "kernel-container", tc.KernelContainer, "Container to use for kernel files")
-	f.StringVar(&tc.KernelPath, "kernel-path", tc.KernelPath, "Path where to find the kernel image")
-	f.StringVar(&tc.QEMUContainer, "qemu-container", tc.QEMUContainer, "Container to use for QEMU files")
-	f.StringVar(&tc.QEMUCmd, "qemu-cmd", tc.QEMUCmd, "QEMU command with platform-specific flags (template variables {{.QEMUBin}} and {{.BIOSPath}} available)")
-	f.StringVar(&tc.QEMUPath, "qemu-path", tc.QEMUPath, "Path where to find the QEMU binary")
-	f.StringVar(&tc.BIOSPath, "bios-path", tc.BIOSPath, "Path where to find the BIOS image")
+var configs = Config{
+	"amd64": map[string]EnvVar{
+		"VMTEST_KERNEL": {
+			Container: "ghcr.io/hugelgupf/vmtest/kernel-amd64:main",
+			Template:  "{{.bzImage}}",
+			Files:     map[string]string{"bzImage": "/bzImage"},
+		},
+		"VMTEST_QEMU": {
+			Container:   "ghcr.io/hugelgupf/vmtest/qemu:main",
+			Template:    "{{.qemu}}/bin/qemu-system-x86_64 -L {{.qemu}}/pc-bios -m 1G",
+			Directories: map[string]string{"qemu": "/zqemu"},
+		},
+	},
+	"arm": map[string]EnvVar{
+		"VMTEST_KERNEL": {
+			Container: "ghcr.io/hugelgupf/vmtest/kernel-arm:main",
+			Template:  "{{.zImage}}",
+			Files:     map[string]string{"zImage": "/zImage"},
+		},
+		"VMTEST_QEMU": {
+			Container:   "ghcr.io/hugelgupf/vmtest/qemu:main",
+			Template:    "{{.qemu}}/bin/qemu-system-arm -M virt,highmem=off -L {{.qemu}}/pc-bios",
+			Directories: map[string]string{"qemu": "/zqemu"},
+		},
+	},
+	"arm64": map[string]EnvVar{
+		"VMTEST_KERNEL": {
+			Container: "ghcr.io/hugelgupf/vmtest/kernel-arm64:main",
+			Template:  "{{.Image}}",
+			Files:     map[string]string{"Image": "/Image"},
+		},
+		"VMTEST_QEMU": {
+			Container:   "ghcr.io/hugelgupf/vmtest/qemu:main",
+			Template:    "{{.qemu}}/bin/qemu-system-aarch64 -machine virt -cpu max -m 1G -L {{.qemu}}/pc-bios",
+			Directories: map[string]string{"qemu": "/zqemu"},
+		},
+	},
 }
 
-var configs = map[string]TestEnvConfig{
-	"amd64": {
-		KernelContainer: "ghcr.io/hugelgupf/vmtest/kernel-amd64:main",
-		KernelPath:      "/bzImage",
-		QEMUContainer:   "ghcr.io/hugelgupf/vmtest/qemu:main",
-		QEMUCmd:         "{{.QEMUBin}} -L {{.BIOSPath}} -m 1G",
-		QEMUPath:        "/zqemu/bin/qemu-system-x86_64",
-		BIOSPath:        "/zqemu/pc-bios",
-	},
-	"arm": {
-		KernelContainer: "ghcr.io/hugelgupf/vmtest/kernel-arm:main",
-		KernelPath:      "/zImage",
-		QEMUContainer:   "ghcr.io/hugelgupf/vmtest/qemu:main",
-		QEMUCmd:         "{{.QEMUBin}} -M virt,highmem=off -L {{.BIOSPath}}",
-		QEMUPath:        "/zqemu/bin/qemu-system-arm",
-		BIOSPath:        "/zqemu/pc-bios",
-	},
-	"arm64": {
-		KernelContainer: "ghcr.io/hugelgupf/vmtest/kernel-arm64:main",
-		KernelPath:      "/Image",
-		QEMUContainer:   "ghcr.io/hugelgupf/vmtest/qemu:main",
-		QEMUCmd:         "{{.QEMUBin}} -machine virt -cpu max -m 1G -L {{.BIOSPath}}",
-		QEMUPath:        "/zqemu/bin/qemu-system-aarch64",
-		BIOSPath:        "/zqemu/pc-bios",
-	},
-}
-
-func defaultConfig() TestEnvConfig {
+func defaultConfig() EnvConfig {
 	arch := os.Getenv("VMTEST_ARCH")
 	if c, ok := configs[arch]; ok {
 		return c
@@ -88,13 +107,12 @@ func defaultConfig() TestEnvConfig {
 		return c
 	}
 	// On other architectures, user has to provide all values via flags.
-	return TestEnvConfig{}
+	return EnvConfig{}
 }
 
 func run() error {
-	config := defaultConfig()
-	config.RegisterFlags(flag.CommandLine)
 	flag.Parse()
+	config := defaultConfig()
 
 	if flag.NArg() < 2 {
 		return fmt.Errorf("too few arguments: usage: `%s -- ./test-to-run`", os.Args[0])
@@ -107,16 +125,10 @@ func run() error {
 	}
 	defer client.Close()
 
-	artifacts := client.
-		Container().
-		From(config.QEMUContainer).
-		WithFile(config.KernelPath, client.Container().From(config.KernelContainer).File(config.KernelPath)).
-		Directory("/")
-
-	return runNatively(ctx, artifacts, &config, flag.Args())
+	return runNatively(ctx, client, config, flag.Args())
 }
 
-func runNatively(ctx context.Context, artifacts *dagger.Directory, config *TestEnvConfig, args []string) error {
+func runNatively(ctx context.Context, client *dagger.Client, config EnvConfig, args []string) error {
 	var tmpDir string
 
 	if !*keepArtifacts {
@@ -153,41 +165,47 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, config *TestE
 	if !*keepArtifacts {
 		defer os.RemoveAll(tmpDir)
 	}
-
-	if ok, err := artifacts.Export(ctx, tmpDir); !ok || err != nil {
-		return fmt.Errorf("failed artifact export: %w", err)
-	}
-
 	tmp, err := filepath.Abs(tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not retrieve absolute path: %w", err)
 	}
 
-	kpath := filepath.Join(tmp, config.KernelPath)
-	sub := struct {
-		QEMUBin  string
-		BIOSPath string
-	}{
-		QEMUBin:  filepath.Join(tmp, config.QEMUPath),
-		BIOSPath: filepath.Join(tmp, config.BIOSPath),
+	base := client.Container()
+	var envv []string
+	for varName, varConf := range config {
+		// Already set by caller.
+		if os.Getenv(varName) != "" {
+			continue
+		}
+
+		files := make(map[string]string)
+		for templateName, file := range varConf.Files {
+			base = base.WithFile(file, client.Container().From(varConf.Container).File(file))
+			files[templateName] = filepath.Join(tmp, file)
+		}
+		for templateName, dir := range varConf.Directories {
+			base = base.WithDirectory(dir, client.Container().From(varConf.Container).Directory(dir))
+			files[templateName] = filepath.Join(tmp, dir)
+		}
+
+		tmpl, err := template.New(varName).Parse(varConf.Template)
+		if err != nil {
+			return fmt.Errorf("invalid %s template: %w", varName, err)
+		}
+		var s strings.Builder
+		if err := tmpl.Execute(&s, files); err != nil {
+			return fmt.Errorf("failed to substitute %s template variables: %w", varName, err)
+		}
+		envv = append(envv, varName+"="+s.String())
 	}
-	qemuTemplate, err := template.New("qemu").Parse(config.QEMUCmd)
-	if err != nil {
-		return fmt.Errorf("invalid QEMU command template: %w", err)
-	}
-	var qemuCmd strings.Builder
-	if err := qemuTemplate.Execute(&qemuCmd, sub); err != nil {
-		return fmt.Errorf("failed to substitute QEMU command template variables: %w", err)
+	artifacts := base.Directory("/")
+
+	if ok, err := artifacts.Export(ctx, tmpDir); !ok || err != nil {
+		return fmt.Errorf("failed artifact export: %w", err)
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Env = os.Environ()
-	if os.Getenv("VMTEST_KERNEL") == "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("VMTEST_KERNEL=%s", kpath))
-	}
-	if os.Getenv("VMTEST_QEMU") == "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("VMTEST_QEMU=%s", qemuCmd.String()))
-	}
+	cmd.Env = append(os.Environ(), envv...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -196,7 +214,7 @@ func runNatively(ctx context.Context, artifacts *dagger.Directory, config *TestE
 		defer func() {
 			fmt.Println("\nTo run another test using the same artifacts:")
 
-			fmt.Printf("VMTEST_KERNEL=%s VMTEST_QEMU=%q ...\n", kpath, qemuCmd.String())
+			fmt.Printf("%s ...\n", strings.Join(envv, " "))
 		}()
 	}
 
