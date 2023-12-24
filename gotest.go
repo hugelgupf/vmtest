@@ -87,7 +87,6 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 		testFile := filepath.Join(pkgDir, fmt.Sprintf("%s.test", path.Base(pkg)))
 
 		args := []string{
-			"test",
 			"-gcflags=all=-l",
 			"-ldflags", "-s -w",
 			"-c", pkg,
@@ -96,8 +95,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 		if len(vmCoverProfile) > 0 {
 			args = append(args, "-covermode=atomic")
 		}
-
-		cmd := env.GoCmd(args...)
+		cmd := env.GoCmd("test", args...)
 		if stderr, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("could not build %s: %v\n%s", pkg, err, string(stderr))
 		}
