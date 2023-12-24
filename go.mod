@@ -4,14 +4,14 @@ go 1.18
 
 require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
-	github.com/creack/pty v1.1.18
+	github.com/creack/pty v1.1.21
 	github.com/ncruces/go-fs v0.2.2
-	github.com/u-root/gobusybox/src v0.0.0-20230806212452-e9366a5b9fdc
+	github.com/u-root/gobusybox/src v0.0.0-20231224233253-2944a440b6b6
 	github.com/u-root/u-root v0.11.1-0.20230807200058-f87ad7ccb594
-	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
-	golang.org/x/sync v0.3.0
-	golang.org/x/sys v0.13.0
-	golang.org/x/tools v0.12.0
+	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
+	golang.org/x/sync v0.5.0
+	golang.org/x/sys v0.15.0
+	golang.org/x/tools v0.16.1
 )
 
 require (
@@ -20,22 +20,22 @@ require (
 	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/insomniacslk/dhcp v0.0.0-20230220063916-5369909a5de7 // indirect
+	github.com/insomniacslk/dhcp v0.0.0-20231206064809-8c70d406f6d2 // indirect
 	github.com/josharian/native v1.1.0 // indirect
-	github.com/klauspost/compress v1.10.6 // indirect
-	github.com/klauspost/pgzip v1.2.4 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/mdlayher/ethernet v0.0.0-20190606142754-0394541c37b7 // indirect
-	github.com/mdlayher/raw v0.0.0-20191009151244-50f2db8cc065 // indirect
+	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/klauspost/pgzip v1.2.6 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mdlayher/packet v1.1.2 // indirect
+	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
 	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63 // indirect
-	github.com/ulikunitz/xz v0.5.8 // indirect
-	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
-	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
-	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
-	src.elv.sh v0.16.0-rc1.0.20220116211855-fda62502ad7f // indirect
+	github.com/ulikunitz/xz v0.5.11 // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
+	golang.org/x/mod v0.14.0 // indirect
+	golang.org/x/net v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	src.elv.sh v0.19.2 // indirect
 )
