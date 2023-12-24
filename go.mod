@@ -37,5 +37,5 @@ require (
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	src.elv.sh v0.19.2 // indirect
+	src.elv.sh v0.16.0-rc1.0.20220116211855-fda62502ad7f // indirect
 )
