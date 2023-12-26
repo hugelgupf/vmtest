@@ -83,30 +83,35 @@ func IDEBlockDevice(file string) Fn {
 
 // P9Directory is a Device that exposes a directory as a Plan9 (9p)
 // read-write filesystem in the VM.
+//
 // dir is the directory to expose as read-write 9p filesystem.
 //
-// If boot is true, indicates this is the root volume. There
-// can only be one boot 9pfs at a time.
+// tag is an identifier that is used within the VM when mounting an fs, e.g.
+// 'mount -t 9p my-vol-ident mountpoint'. The tag must be unique for each dir.
+func P9Directory(dir string, tag string) Fn {
+	return p9Directory(dir, false, tag)
+}
+
+// P9BootDirectory is a Device that exposes a directory as a Plan9 (9p)
+// read-write filesystem in the VM.
 //
-// tag is an identifier that is used within the VM when mounting an fs,
-// e.g. 'mount -t 9p my-vol-ident mountpoint'. If not specified, a default
-// tag of 'tmpdir' will be used, unless boot is set, in which case
-// "rootdrv" is set (a special value Linux knows how to interpret).
-//
-// Because the tag must be unique for each dir, if multiple non-boot
-// P9Directory's are used, tag may be omitted for no more than one.
-func P9Directory(dir string, boot bool, tag string) Fn {
+// The directory will be used as the root volume. There can only be one boot
+// 9pfs at a time. The tag used will be /dev/root, and kernel args will be
+// appended to mount it as the root file system.
+func P9BootDirectory(dir string) Fn {
+	return p9Directory(dir, true, "/dev/root")
+}
+
+func p9Directory(dir string, boot bool, tag string) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
 		if len(dir) == 0 {
-			return nil
+			return fmt.Errorf("no directory specified for shared 9P file system")
+		}
+		if len(tag) == 0 {
+			return fmt.Errorf("a tag must be specified for 9P file system")
 		}
 
 		var id string
-		if boot {
-			tag = "/dev/root"
-		} else if len(tag) == 0 {
-			tag = "tmpdir"
-		}
 		if boot {
 			id = "rootdrv"
 		} else {

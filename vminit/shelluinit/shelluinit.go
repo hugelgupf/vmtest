@@ -13,12 +13,11 @@ import (
 	"os/exec"
 
 	"github.com/hugelgupf/vmtest/guest"
-	"github.com/hugelgupf/vmtest/vminit/common"
 	"golang.org/x/sys/unix"
 )
 
 func runTest() error {
-	cleanup, err := common.MountSharedDir()
+	cleanup, err := guest.MountSharedDir()
 	if err != nil {
 		return err
 	}

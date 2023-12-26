@@ -16,14 +16,6 @@ import (
 	"github.com/u-root/u-root/pkg/tarutil"
 )
 
-const (
-	// https://wiki.qemu.org/Documentation/9psetup#msize recommends an
-	// msize of at least 10MiB. Larger number might give better
-	// performance. QEMU will print a warning if it is too small. Linux's
-	// default is 8KiB which is way too small.
-	msize9P = 10 * 1024 * 1024
-)
-
 // gcovFilter filters on all files ending with a gcda or gcno extension.
 func gcovFilter(hdr *tar.Header) bool {
 	if hdr.Typeflag == tar.TypeDir {

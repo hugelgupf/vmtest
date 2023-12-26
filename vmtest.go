@@ -38,9 +38,12 @@ type VMOptions struct {
 	// QEMUOpts are options to the QEMU VM.
 	QEMUOpts []qemu.Fn
 
-	// SharedDir is a directory shared with the QEMU VM using 9P.
+	// SharedDir is a directory shared with the QEMU VM using 9P using the
+	// tag "tmpdir".
 	//
-	// If none is set, no directory is shared with the guest.
+	// guest.MountSharedDir mounts this directory at /testdata.
+	//
+	// If none is set, no directory is shared with the guest by default.
 	SharedDir string
 
 	// Initramfs is an optional u-root initramfs to build.
@@ -205,7 +208,7 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 		qemu.VirtioRandom(),
 	}
 	if o.SharedDir != "" {
-		qopts = append(qopts, qemu.P9Directory(o.SharedDir, false, ""))
+		qopts = append(qopts, qemu.P9Directory(o.SharedDir, "tmpdir"))
 	}
 	if o.Initramfs != nil {
 		// When possible, make the initramfs available to the guest in

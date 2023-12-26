@@ -19,7 +19,6 @@ import (
 
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/internal/json2test"
-	"github.com/hugelgupf/vmtest/vminit/common"
 	"golang.org/x/sys/unix"
 )
 
@@ -76,11 +75,7 @@ func AppendFile(srcFile, targetFile string) error {
 func runTest() error {
 	flag.Parse()
 
-	if err := os.MkdirAll("/testdata", 0755); err != nil {
-		log.Fatalf("Couldn't create testdata directory: %v", err)
-	}
-
-	cleanup, err := common.MountSharedDir()
+	cleanup, err := guest.MountSharedDir()
 	if err != nil {
 		return err
 	}
