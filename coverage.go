@@ -32,7 +32,7 @@ func CollectKernelCoverage() Opt {
 
 		sharedDir := testtmp.TempDir(t)
 		v.QEMUOpts = append(v.QEMUOpts,
-			qemu.P9Directory(sharedDir, false, "kcoverage"),
+			qemu.P9Directory(sharedDir, "kcoverage"),
 			qemu.WithAppendKernel("VMTEST_KCOVERAGE_TAG=kcoverage"),
 		)
 
