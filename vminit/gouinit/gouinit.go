@@ -82,13 +82,19 @@ func runTest() error {
 	defer cleanup()
 	defer guest.CollectKernelCoverage()
 
+	mp, err := guest.Mount9PDir("/gotestdata", "gotests")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = mp.Unmount(0) }()
+
 	testResultEvents, err := guest.SerialEventChannel[json2test.TestEvent]("go-test-results")
 	if err != nil {
 		return err
 	}
 	defer testResultEvents.Close()
 
-	return walkTests("/testdata/tests", func(path, pkgName string) {
+	return walkTests("/gotestdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
 		ctx, cancel := context.WithTimeout(context.Background(), individualTestTimeout+500*time.Millisecond)
 		defer cancel()

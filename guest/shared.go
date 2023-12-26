@@ -12,6 +12,8 @@ import (
 )
 
 const (
+	// SharedDir is where MountSharedDir will mount a directory shared via
+	// vmtest.WithSharedDir.
 	SharedDir = "/testdata"
 
 	// https://wiki.qemu.org/Documentation/9psetup#msize recommends an
@@ -21,16 +23,30 @@ const (
 	msize9P = 10 * 1024 * 1024
 )
 
-// MountSharedDir mounts the directory shared with the VM test. A cleanup
-// function is returned to unmount.
-func MountSharedDir() (func(), error) {
-	if err := os.MkdirAll(SharedDir, 0o644); err != nil {
+// Mount9PDir mounts a directory shared as tag at dir. It creates dir if it
+// does not exist.
+func Mount9PDir(dir, tag string) (*mount.MountPoint, error) {
+	if err := os.MkdirAll(dir, 0o644); err != nil {
 		return nil, err
 	}
 
-	mp, err := mount.Mount("tmpdir", SharedDir, "9p", fmt.Sprintf("9P2000.L,msize=%d", msize9P), 0)
+	mp, err := mount.Mount(tag, dir, "9p", fmt.Sprintf("9P2000.L,msize=%d", msize9P), 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to mount test directory: %v", err)
+		return nil, fmt.Errorf("failed to mount directory %s: %v", dir, err)
+	}
+	return mp, nil
+}
+
+// MountSharedDir mounts the directory shared with the VM test. A cleanup
+// function is returned to unmount.
+func MountSharedDir() (func(), error) {
+	tag := os.Getenv("VMTEST_SHARED_DIR")
+	if tag == "" {
+		return func() {}, nil
+	}
+	mp, err := Mount9PDir(SharedDir, tag)
+	if err != nil {
+		return nil, err
 	}
 	return func() { _ = mp.Unmount(0) }, nil
 }
