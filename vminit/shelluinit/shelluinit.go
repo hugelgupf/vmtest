@@ -24,8 +24,14 @@ func runTest() error {
 	defer cleanup()
 	defer guest.CollectKernelCoverage()
 
+	mp, err := guest.Mount9PDir("/shelltestdata", "shelltest")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = mp.Unmount(0) }()
+
 	// Run the test script test.elv
-	test := "/testdata/test.elv"
+	test := "/shelltestdata/test.elv"
 	if _, err := os.Stat(test); os.IsNotExist(err) {
 		return errors.New("could not find any test script to run")
 	}
