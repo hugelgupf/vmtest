@@ -110,6 +110,11 @@ func p9Directory(dir string, boot bool, tag string) Fn {
 		if len(tag) == 0 {
 			return fmt.Errorf("a tag must be specified for 9P file system")
 		}
+		if fi, err := os.Stat(dir); err != nil {
+			return fmt.Errorf("cannot access directory %s to be shared with guest: %v", dir, err)
+		} else if !fi.IsDir() {
+			return fmt.Errorf("directory %s to be shared with guest is not a directory, is %s", dir, fi.Mode().Type())
+		}
 
 		var id string
 		if boot {

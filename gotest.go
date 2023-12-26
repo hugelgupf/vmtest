@@ -150,14 +150,22 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 	}
 	tc := json2test.NewTestCollector()
 
+	qemuFns := []qemu.Fn{
+		qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle),
+		qemu.P9Directory(sharedDir, "gotests"),
+	}
+	goCov := os.Getenv("GOCOVERDIR")
+	if goCov != "" {
+		qemuFns = append(qemuFns,
+			qemu.P9Directory(goCov, "gocov"),
+			qemu.WithAppendKernel("VMTEST_GOCOVERDIR=gocov"),
+		)
+	}
 	// Create the initramfs and start the VM.
 	vm := StartVM(t, append(
 		[]Opt{
 			WithMergedInitramfs(initramfs),
-			WithQEMUFn(
-				qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle),
-				qemu.P9Directory(sharedDir, "gotests"),
-			),
+			WithQEMUFn(qemuFns...),
 			CollectKernelCoverage(),
 		}, o...)...)
 

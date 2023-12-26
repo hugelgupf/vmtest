@@ -88,6 +88,17 @@ func runTest() error {
 	}
 	defer func() { _ = mp.Unmount(0) }()
 
+	var envv []string
+	if tag := os.Getenv("VMTEST_GOCOVERDIR"); tag != "" {
+		mp, err := guest.Mount9PDir("/gocov", tag)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = mp.Unmount(0) }()
+
+		envv = append(envv, "GOCOVERDIR=/gocov")
+	}
+
 	testResultEvents, err := guest.SerialEventChannel[json2test.TestEvent]("go-test-results")
 	if err != nil {
 		return err
@@ -113,6 +124,7 @@ func runTest() error {
 
 		cmd := exec.CommandContext(ctx, path, args...)
 		cmd.Stdin, cmd.Stderr = os.Stdin, os.Stderr
+		cmd.Env = append(os.Environ(), envv...)
 
 		// Write to stdout for humans, write to w for the JSON converter.
 		//
