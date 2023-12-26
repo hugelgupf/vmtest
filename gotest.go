@@ -132,7 +132,7 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 
 	var uinitArgs []string
 	if len(vmCoverProfile) > 0 {
-		uinitArgs = append(uinitArgs, "-coverprofile=/testdata/coverage.profile")
+		uinitArgs = append(uinitArgs, "-coverprofile=/gotestdata/coverage.profile")
 	}
 	initramfs := uroot.Opts{
 		Env: env,
@@ -154,8 +154,10 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 	vm := StartVM(t, append(
 		[]Opt{
 			WithMergedInitramfs(initramfs),
-			WithQEMUFn(qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle)),
-			WithSharedDir(sharedDir),
+			WithQEMUFn(
+				qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle),
+				qemu.P9Directory(sharedDir, "gotests"),
+			),
 			CollectKernelCoverage(),
 		}, o...)...)
 

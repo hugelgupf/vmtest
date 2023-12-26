@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/u-root/u-root/pkg/mount"
 	"github.com/u-root/u-root/pkg/tarutil"
 )
 
@@ -39,13 +38,9 @@ func CollectKernelCoverage() {
 	}
 
 	coverageDir := "/coverage"
-	if err := os.MkdirAll(coverageDir, 0o644); err != nil {
-		log.Fatal(err)
-	}
-
-	mp, err := mount.Mount(tag, coverageDir, "9p", fmt.Sprintf("9P2000.L,msize=%d", msize9P), 0)
+	mp, err := Mount9PDir(coverageDir, tag)
 	if err != nil {
-		log.Fatalf("Failed to mount coverage directory: %v", err)
+		log.Fatal(err)
 	}
 	defer func() { _ = mp.Unmount(0) }()
 

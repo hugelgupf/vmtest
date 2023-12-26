@@ -208,7 +208,10 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 		qemu.VirtioRandom(),
 	}
 	if o.SharedDir != "" {
-		qopts = append(qopts, qemu.P9Directory(o.SharedDir, "tmpdir"))
+		qopts = append(qopts,
+			qemu.P9Directory(o.SharedDir, "tmpdir"),
+			qemu.WithAppendKernel("VMTEST_SHARED_DIR=tmpdir"),
+		)
 	}
 	if o.Initramfs != nil {
 		// When possible, make the initramfs available to the guest in
