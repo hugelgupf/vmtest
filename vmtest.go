@@ -28,7 +28,8 @@ type VMOptions struct {
 	// Name is the test's name.
 	//
 	// If name is left empty, t.Name() will be used.
-	Name string
+	Name                string
+	ConsoleOutputPrefix string
 
 	// GuestArch is a setup function that sets the architecture.
 	//
@@ -127,6 +128,10 @@ type Opt func(testing.TB, *VMOptions) error
 func WithName(name string) Opt {
 	return func(_ testing.TB, v *VMOptions) error {
 		v.Name = name
+		// If the caller named this test, it's likely they are starting
+		// more than 1 VM in the same test. Distinguish serial output
+		// by putting the name of the VM in every console log line.
+		v.ConsoleOutputPrefix = fmt.Sprintf("%s vm", name)
 		return nil
 	}
 }
@@ -171,6 +176,9 @@ func WithSharedDir(dir string) Opt {
 func StartVM(t testing.TB, opts ...Opt) *qemu.VM {
 	o := &VMOptions{
 		Name: t.Name(),
+		// Unnamed VMs likely means there's only 1 VM in the test. No
+		// need to take up screen width with the test name.
+		ConsoleOutputPrefix: "vm",
 	}
 
 	for _, opt := range opts {
@@ -186,22 +194,8 @@ func StartVM(t testing.TB, opts ...Opt) *qemu.VM {
 func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 	SkipWithoutQEMU(t)
 
-	// This is used by the console output logger in every t.Logf line to
-	// prefix console statements.
-	var consoleOutputName string
-	if len(o.Name) == 0 {
-		// Unnamed VMs likely means there's only 1 VM in the test. No
-		// need to take up screen width with the test name.
-		consoleOutputName = "serial"
-	} else {
-		// If the caller named this test, it's likely they are starting
-		// more than 1 VM in the same test. Distinguish serial output
-		// by putting the name of the VM in every console log line.
-		consoleOutputName = fmt.Sprintf("%s serial", o.Name)
-	}
-
 	qopts := []qemu.Fn{
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(consoleOutputName, t.Logf)),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(o.ConsoleOutputPrefix, t.Logf)),
 		// Tests use this cmdline arg to identify they are running inside a
 		// vmtest using SkipIfNotInVM
 		qemu.WithAppendKernel("uroot.vmtest"),
