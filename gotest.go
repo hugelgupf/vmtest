@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/internal/testevent"
@@ -83,6 +84,40 @@ func compileTestAndData(env *golang.Environ, pkg, destDir string, cover bool) er
 	return nil
 }
 
+// GoTestOptions is configuration for RunGoTestsInVM.
+type GoTestOptions struct {
+	VMOpts      []Opt
+	Packages    []string
+	TestTimeout time.Duration
+}
+
+// GoTestOpt is a configurator for GoTestOptions.
+type GoTestOpt func(t testing.TB, o *GoTestOptions) error
+
+// WithVMOpt appends the VM configurators for use with Go tests.
+func WithVMOpt(opts ...Opt) GoTestOpt {
+	return func(t testing.TB, o *GoTestOptions) error {
+		o.VMOpts = append(o.VMOpts, opts...)
+		return nil
+	}
+}
+
+// AppendPackage adds additional packages to the test.
+func AppendPackage(pkgs ...string) GoTestOpt {
+	return func(t testing.TB, o *GoTestOptions) error {
+		o.Packages = append(o.Packages, pkgs...)
+		return nil
+	}
+}
+
+// WithGoTestTimeout sets a timeout for individual Go test binaries.
+func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
+	return func(t testing.TB, o *GoTestOptions) error {
+		o.TestTimeout = timeout
+		return nil
+	}
+}
+
 // RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
 // configured in options `o`. It collects the test results and provides a
 // pass/fail result of each individual test.
@@ -102,10 +137,19 @@ func compileTestAndData(env *golang.Environ, pkg, destDir string, cover bool) er
 // via the VMTEST_GO_PROFILE env var.
 //
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
-//   - TODO: specify timeouts for individual tests.
-//   - TODO: check each test's exit status.
-func RunGoTestsInVM(t testing.TB, pkgs []string, o ...Opt) {
+func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	SkipWithoutQEMU(t)
+
+	goOpts := &GoTestOptions{
+		Packages: pkgs,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			if err := opt(t, goOpts); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 
 	sharedDir := testtmp.TempDir(t)
 	vmCoverProfile, ok := os.LookupEnv("VMTEST_GO_PROFILE")
@@ -131,7 +175,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, o ...Opt) {
 
 	// Compile the Go tests. Place the test binaries in a directory that
 	// will be shared with the VM using 9P.
-	for _, pkg := range pkgs {
+	for _, pkg := range goOpts.Packages {
 		pkgDir := filepath.Join(testDir, pkg)
 		if err := compileTestAndData(env, pkg, pkgDir, len(vmCoverProfile) > 0); err != nil {
 			t.Fatal(err)
@@ -173,7 +217,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, o ...Opt) {
 			WithMergedInitramfs(initramfs),
 			WithQEMUFn(qemuFns...),
 			CollectKernelCoverage(),
-		}, o...)...)
+		}, goOpts.VMOpts...)...)
 
 	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
 		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
