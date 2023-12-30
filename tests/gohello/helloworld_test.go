@@ -23,7 +23,7 @@ func TestStartVM(t *testing.T) {
 	// Kernel coverage is copied to kcovDir during t.Cleanup, so induce it
 	// before the test is over by using a sub-test.
 	t.Run("test", func(t *testing.T) {
-		vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithMergedInitramfs(
+		vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithVMOpt(vmtest.WithMergedInitramfs(
 			uroot.Opts{
 				Commands: uroot.BusyBoxCmds(
 					"github.com/u-root/u-root/cmds/core/dhclient",
@@ -31,7 +31,7 @@ func TestStartVM(t *testing.T) {
 					"github.com/u-root/u-root/cmds/core/false",
 				),
 			},
-		))
+		)))
 	})
 
 	if _, err := os.Stat(filepath.Join(kcovDir, "TestStartVM", "test", "0", "kernel_coverage.tar")); err != nil {
