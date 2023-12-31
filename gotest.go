@@ -30,6 +30,58 @@ func lookupPkgs(env golang.Environ, dir string, patterns ...string) ([]*packages
 	return packages.Load(cfg, patterns...)
 }
 
+func compileTestAndData(env *golang.Environ, pkg, destDir string, cover bool) error {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return err
+	}
+
+	testFile := filepath.Join(destDir, fmt.Sprintf("%s.test", path.Base(pkg)))
+
+	args := []string{
+		"-gcflags=all=-l",
+		"-ldflags", "-s -w",
+		"-c", pkg,
+		"-o", testFile,
+	}
+	if cover {
+		args = append(args, "-covermode=atomic")
+	}
+	cmd := env.GoCmd("test", args...)
+	if stderr, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("could not build %s: %v\n%s", pkg, err, string(stderr))
+	}
+
+	// When a package does not contain any tests, the test
+	// executable is not generated, so it is not included in the
+	// `tests` list.
+	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
+		pkgs, err := lookupPkgs(*env, "", pkg)
+		if err != nil {
+			return fmt.Errorf("failed to look up package %q: %v", pkg, err)
+		}
+
+		// One directory = one package in standard Go, so
+		// finding the first file's parent directory should
+		// find us the package directory.
+		var dir string
+		for _, p := range pkgs {
+			if len(p.GoFiles) > 0 {
+				dir = filepath.Dir(p.GoFiles[0])
+			}
+		}
+		if dir == "" {
+			return fmt.Errorf("could not find package directory for %q", pkg)
+		}
+
+		// Optimistically copy any files in the pkg's
+		// directory, in case e.g. a testdata dir is there.
+		if err := copyRelativeFiles(dir, destDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
 // configured in options `o`. It collects the test results and provides a
 // pass/fail result of each individual test.
@@ -80,53 +132,8 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 	// will be shared with the VM using 9P.
 	for _, pkg := range pkgs {
 		pkgDir := filepath.Join(testDir, pkg)
-		if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		if err := compileTestAndData(env, pkg, pkgDir, len(vmCoverProfile) > 0); err != nil {
 			t.Fatal(err)
-		}
-
-		testFile := filepath.Join(pkgDir, fmt.Sprintf("%s.test", path.Base(pkg)))
-
-		args := []string{
-			"-gcflags=all=-l",
-			"-ldflags", "-s -w",
-			"-c", pkg,
-			"-o", testFile,
-		}
-		if len(vmCoverProfile) > 0 {
-			args = append(args, "-covermode=atomic")
-		}
-		cmd := env.GoCmd("test", args...)
-		if stderr, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("could not build %s: %v\n%s", pkg, err, string(stderr))
-		}
-
-		// When a package does not contain any tests, the test
-		// executable is not generated, so it is not included in the
-		// `tests` list.
-		if _, err := os.Stat(testFile); !os.IsNotExist(err) {
-			pkgs, err := lookupPkgs(*env, "", pkg)
-			if err != nil {
-				t.Fatalf("Failed to look up package %q: %v", pkg, err)
-			}
-
-			// One directory = one package in standard Go, so
-			// finding the first file's parent directory should
-			// find us the package directory.
-			var dir string
-			for _, p := range pkgs {
-				if len(p.GoFiles) > 0 {
-					dir = filepath.Dir(p.GoFiles[0])
-				}
-			}
-			if dir == "" {
-				t.Fatalf("Could not find package directory for %q", pkg)
-			}
-
-			// Optimistically copy any files in the pkg's
-			// directory, in case e.g. a testdata dir is there.
-			if err := copyRelativeFiles(dir, filepath.Join(testDir, pkg)); err != nil {
-				t.Fatal(err)
-			}
 		}
 	}
 
