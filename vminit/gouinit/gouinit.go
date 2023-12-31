@@ -152,8 +152,10 @@ func runTest() error {
 		}
 
 		if err := cmd.Wait(); err != nil {
-			// Log for processing by test2json.
-			fmt.Fprintf(w, "Error: test for %q exited early: %v", pkgName, err)
+			// TODO: use custom event?
+			//
+			// Wrong exit status is not noticed by test infra at the moment.
+			log.Printf("Error: test for %q exited early: %v", pkgName, err)
 		}
 
 		// Close the pipe so test2json will quit.
