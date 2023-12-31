@@ -186,6 +186,9 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	if len(vmCoverProfile) > 0 {
 		uinitArgs = append(uinitArgs, "-coverprofile=/gotestdata/coverage.profile")
 	}
+	if goOpts.TestTimeout > 0 {
+		uinitArgs = append(uinitArgs, fmt.Sprintf("-test_timeout=%s", goOpts.TestTimeout))
+	}
 	initramfs := uroot.Opts{
 		Env: env,
 		Commands: append(
