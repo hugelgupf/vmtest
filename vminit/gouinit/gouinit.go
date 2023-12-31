@@ -23,10 +23,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const individualTestTimeout = 25 * time.Second
-
 var (
-	coverProfile = flag.String("coverprofile", "", "Filename to write coverage data to")
+	coverProfile          = flag.String("coverprofile", "", "Filename to write coverage data to")
+	individualTestTimeout = flag.Duration("test_timeout", 25*time.Second, "timeout per Go package")
 )
 
 func walkTests(testRoot string, fn func(string, string)) error {
@@ -114,7 +113,7 @@ func runTest() error {
 
 	return walkTests("/gotestdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
-		ctx, cancel := context.WithTimeout(context.Background(), individualTestTimeout+500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), *individualTestTimeout+500*time.Millisecond)
 		defer cancel()
 
 		r, w, err := os.Pipe()
