@@ -398,3 +398,30 @@ func TestExpectTimesOut(t *testing.T) {
 		t.Errorf("VM exited with %v, expected SIGKILL", err)
 	}
 }
+
+func TestWaitTwice(t *testing.T) {
+	var errFoo = errors.New("foo")
+	vm, err := Start(ArchAMD64,
+		WithQEMUCommand("sleep 3"),
+		ClearQEMUArgs(),
+		// In case the user is calling this test with env vars set.
+		WithKernel(""),
+		WithInitramfs(""),
+
+		WithTask(Cleanup(func() error {
+			return errFoo
+		})),
+	)
+	if err != nil {
+		t.Fatalf("Subprocess failed to start: %v", err)
+	}
+	t.Logf("cmdline: %v", vm.CmdlineQuoted())
+
+	if err := vm.Wait(); !errors.Is(err, errFoo) {
+		t.Fatalf("Wait = %v, want %v", err, errFoo)
+	}
+
+	if err := vm.Wait(); !errors.Is(err, errFoo) {
+		t.Fatalf("Wait = %v, want %v", err, errFoo)
+	}
+}

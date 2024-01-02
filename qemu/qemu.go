@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Netflix/go-expect"
@@ -353,7 +354,7 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		// Capture the var... Go stuff.
 		task := task
 		n := newNotifications()
-		vm.wg.Go(func() error {
+		vm.taskWG.Go(func() error {
 			return task(ctx, n)
 		})
 		vm.notifs = append(vm.notifs, n)
@@ -373,12 +374,12 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		cancel()
 		// Wait for tasks to exit. Some day we'll report their errors
 		// with errors.Join.
-		_ = vm.wg.Wait()
+		_ = vm.taskWG.Wait()
 		return nil, err
 	}
 	vm.notifs.vmStarted()
 	vm.cmd = cmd
-	vm.wait = make(chan error)
+	vm.wait = make(chan struct{})
 
 	// A goroutine to wait on exit, as we need to close Console.Tty() to
 	// unblock any waiting Expect calls.
@@ -392,7 +393,10 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 		// Don't call vm.Console.Close() as that also closes the ptm,
 		// which a blocking Expect call may still expect to read from.
 		vm.Console.Tty().Close()
-		vm.wait <- err
+		vm.waitMu.Lock()
+		vm.waitErr = err
+		vm.waitMu.Unlock()
+		close(vm.wait)
 	}()
 	return vm, nil
 }
@@ -470,10 +474,13 @@ type VM struct {
 	cmdline []string
 
 	// State related to tasks.
-	wg     errgroup.Group
+	taskWG errgroup.Group
 	notifs notifications
 	cancel func()
-	wait   chan error
+
+	wait    chan struct{}
+	waitMu  sync.Mutex
+	waitErr error
 }
 
 // Cmdline is the command-line the VM was started with.
@@ -501,17 +508,21 @@ func (v *VM) Signal(sig os.Signal) error {
 
 // Wait waits for the VM to exit and expects EOF from the expect console.
 func (v *VM) Wait() error {
-	err := <-v.wait
+	<-v.wait
+
+	v.waitMu.Lock()
+	err := v.waitErr
+	v.waitMu.Unlock()
 
 	// Close everything but the pts (which was already closed).
 	v.Console.Close()
-
 	for _, w := range v.Options.SerialOutput {
 		w.Close()
 	}
 
 	v.cancel()
-	if werr := v.wg.Wait(); werr != nil && err == nil {
+	// Wait for all tasks to exit.
+	if werr := v.taskWG.Wait(); werr != nil && err == nil {
 		err = werr
 	}
 	return err
