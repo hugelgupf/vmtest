@@ -19,6 +19,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/internal/json2test"
+	"github.com/hugelgupf/vmtest/internal/testevent"
 	"golang.org/x/sys/unix"
 )
 
@@ -99,11 +100,17 @@ func runTest() error {
 		envv = append(envv, "GOCOVERDIR=/gocov")
 	}
 
-	testResultEvents, err := guest.EventChannel[json2test.TestEvent]("/gotestdata/results.json")
+	goTestEvents, err := guest.EventChannel[json2test.TestEvent]("/gotestdata/results.json")
 	if err != nil {
 		return err
 	}
-	defer testResultEvents.Close()
+	defer goTestEvents.Close()
+
+	testEvents, err := guest.EventChannel[testevent.ErrorEvent]("/gotestdata/errors.json")
+	if err != nil {
+		return err
+	}
+	defer testEvents.Close()
 
 	return walkTests("/gotestdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
@@ -136,6 +143,10 @@ func runTest() error {
 		// relative directory.
 		cmd.Dir = filepath.Dir(path)
 		if err := cmd.Start(); err != nil {
+			_ = testEvents.Emit(testevent.ErrorEvent{
+				Binary: path,
+				Error:  fmt.Sprintf("failed to start: %v", err),
+			})
 			log.Printf("Failed to start %q: %v", path, err)
 			return
 		}
@@ -145,17 +156,22 @@ func runTest() error {
 		// the test, we may lose some of the last few lines.
 		j := exec.Command("test2json", "-t", "-p", pkgName)
 		j.Stdin = r
-		j.Stdout, cmd.Stderr = testResultEvents, os.Stderr
+		j.Stdout, cmd.Stderr = goTestEvents, os.Stderr
 		if err := j.Start(); err != nil {
+			_ = testEvents.Emit(testevent.ErrorEvent{
+				Binary: path,
+				Error:  fmt.Sprintf("failed to start test2json: %v", err),
+			})
 			log.Printf("Failed to start test2json: %v", err)
 			return
 		}
 
 		if err := cmd.Wait(); err != nil {
-			// TODO: use custom event?
-			//
-			// Wrong exit status is not noticed by test infra at the moment.
-			log.Printf("Error: test for %q exited early: %v", pkgName, err)
+			_ = testEvents.Emit(testevent.ErrorEvent{
+				Binary: path,
+				Error:  fmt.Sprintf("test exited with non-zero status: %v", err),
+			})
+			log.Printf("Error: test %q exited with non-zero status: %v", pkgName, err)
 		}
 
 		// Close the pipe so test2json will quit.
@@ -163,10 +179,18 @@ func runTest() error {
 			log.Printf("Failed to close pipe: %v", err)
 		}
 		if err := j.Wait(); err != nil {
+			_ = testEvents.Emit(testevent.ErrorEvent{
+				Binary: path,
+				Error:  fmt.Sprintf("test2json exited with non-zero status: %v", err),
+			})
 			log.Printf("Failed to stop test2json: %v", err)
 		}
 
 		if err := AppendFile(coverFile, *coverProfile); err != nil {
+			_ = testEvents.Emit(testevent.ErrorEvent{
+				Binary: path,
+				Error:  fmt.Sprintf("could not append to coverage file: %v", err),
+			})
 			log.Printf("Could not append to cover file: %v", err)
 		}
 	})
