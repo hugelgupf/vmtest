@@ -80,4 +80,14 @@ jobs:
         run: (cd ./tools/runvmtest && go build)
 
       - name: Test
-        run: VMTEST_ARCH=${{ matrix.arch }} ./tools/runvmtest/runvmtest -- go test -v ./...
+        run: |
+          VMTEST_ARCH=${{ matrix.arch }} ./tools/runvmtest/runvmtest -- \
+            go test -v -coverprofile=coverage.txt -covermode=atomic -coverpkg=./... ./...
+
+      - uses: codecov/codecov-action@v4-beta
+        env:
+          CODECOV_TOKEN: '6793138f-7113-4561-aa24-08bdd9111678'
+        with:
+          flags: ${{ matrix.arch }}-${{ matrix.go-version }}
+          fail_ci_if_error: true
+          verbose: true
