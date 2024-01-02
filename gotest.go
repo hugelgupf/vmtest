@@ -103,7 +103,7 @@ func compileTestAndData(env *golang.Environ, pkg, destDir string, cover bool) er
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
 //   - TODO: specify timeouts for individual tests.
 //   - TODO: check each test's exit status.
-func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
+func RunGoTestsInVM(t testing.TB, pkgs []string, o ...Opt) {
 	SkipWithoutQEMU(t)
 
 	sharedDir := testtmp.TempDir(t)
