@@ -156,6 +156,9 @@ func WithVMTimeout(timeout time.Duration) Fn {
 //
 // Task goroutines are started right before the guest is started.
 //
+// VM.Wait waits for all tasks to complete before returning an error. Errors
+// produced by tasks are returned by VM.Wait.
+//
 // A task is expected to exit either when ctx is canceled or when the QEMU
 // subprocess exits. When the context is canceled, the QEMU subprocess is
 // expected to exit as well, and when the QEMU subprocess exits, the context is
