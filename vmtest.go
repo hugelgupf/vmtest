@@ -196,9 +196,11 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 
 	qopts := []qemu.Fn{
 		qemu.LogSerialByLine(qemu.PrintLineWithPrefix(o.ConsoleOutputPrefix, t.Logf)),
-		// Tests use this cmdline arg to identify they are running inside a
-		// vmtest using SkipIfNotInVM
-		qemu.WithAppendKernel("uroot.vmtest"),
+		// Tests use this env var to identify they are running inside a
+		// vmtest using SkipIfNotInVM.
+		//
+		// Older tests use the presence of uroot.vmtest in the kernel command-line.
+		qemu.WithAppendKernel("VMTEST_IN_GUEST=1", "uroot.vmtest"),
 		qemu.VirtioRandom(),
 	}
 	if o.SharedDir != "" {
