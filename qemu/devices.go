@@ -384,3 +384,14 @@ func ReadEventFile[T any](path string) ([]T, error) {
 	}
 	return t, nil
 }
+
+// Cleanup adds a function to be run after the VM process exits.
+func Cleanup(f func() error) Task {
+	return func(ctx context.Context, n *Notifications) error {
+		select {
+		case <-ctx.Done():
+		case <-n.VMExited:
+		}
+		return f()
+	}
+}

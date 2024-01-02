@@ -34,13 +34,13 @@ func CollectKernelCoverage() Opt {
 		v.QEMUOpts = append(v.QEMUOpts,
 			qemu.P9Directory(sharedDir, "kcoverage"),
 			qemu.WithAppendKernel("VMTEST_KCOVERAGE_TAG=kcoverage"),
+			qemu.WithTask(qemu.Cleanup(func() error {
+				if err := saveCoverage(t, filepath.Join(sharedDir, "kernel_coverage.tar"), coverageDir); err != nil {
+					return fmt.Errorf("error saving kernel coverage: %v", err)
+				}
+				return nil
+			})),
 		)
-
-		t.Cleanup(func() {
-			if err := saveCoverage(t, filepath.Join(sharedDir, "kernel_coverage.tar"), coverageDir); err != nil {
-				t.Logf("Error saving kernel coverage: %v", err)
-			}
-		})
 		return nil
 	}
 }
