@@ -155,10 +155,8 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 		UinitArgs: uinitArgs,
 		TempDir:   testtmp.TempDir(t),
 	}
-	tc := json2test.NewTestCollector()
 
 	qemuFns := []qemu.Fn{
-		qemu.EventChannelCallback[json2test.TestEvent]("go-test-results", tc.Handle),
 		qemu.P9Directory(sharedDir, "gotests"),
 	}
 	goCov := os.Getenv("GOCOVERDIR")
@@ -207,6 +205,14 @@ func RunGoTestsInVM(t *testing.T, pkgs []string, o ...Opt) {
 		}
 	}
 
+	tc := json2test.NewTestCollector()
+	events, err := qemu.ReadEventFile[json2test.TestEvent](filepath.Join(sharedDir, "results.json"))
+	if err != nil {
+		t.Fatalf("Reading Go test events: %v", err)
+	}
+	for _, event := range events {
+		tc.Handle(event)
+	}
 	// TODO: check that tc.Tests == tests
 	for pkg, test := range tc.Tests {
 		switch test.State {
