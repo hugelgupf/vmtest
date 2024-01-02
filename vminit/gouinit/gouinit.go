@@ -186,12 +186,14 @@ func runTest() error {
 			log.Printf("Failed to stop test2json: %v", err)
 		}
 
-		if err := AppendFile(coverFile, *coverProfile); err != nil {
-			_ = testEvents.Emit(testevent.ErrorEvent{
-				Binary: path,
-				Error:  fmt.Sprintf("could not append to coverage file: %v", err),
-			})
-			log.Printf("Could not append to cover file: %v", err)
+		if len(*coverProfile) > 0 {
+			if err := AppendFile(coverFile, *coverProfile); err != nil {
+				_ = testEvents.Emit(testevent.ErrorEvent{
+					Binary: path,
+					Error:  fmt.Sprintf("could not append to coverage file: %v", err),
+				})
+				log.Printf("Could not append to cover file: %v", err)
+			}
 		}
 	})
 }
