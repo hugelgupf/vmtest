@@ -16,9 +16,9 @@ import (
 
 // Emitter is an event channel emitter.
 type Emitter[T any] struct {
-	serial *os.File
-	w      *io.PipeWriter
-	errCh  chan error
+	file  *os.File
+	w     *io.PipeWriter
+	errCh chan error
 }
 
 // EventChannel opens an event channel to the host over the given device.
@@ -29,14 +29,14 @@ type Emitter[T any] struct {
 //
 // T should be the type of a JSON event being sent, matching the host
 // configuration on qemu.EventChannel reading from this channel.
-func EventChannel[T any](dev string) (*Emitter[T], error) {
-	f, err := os.OpenFile(dev, os.O_WRONLY|os.O_SYNC, 0)
+func EventChannel[T any](path string) (*Emitter[T], error) {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_SYNC, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	emit := &Emitter[T]{
-		serial: f,
+		file: f,
 	}
 
 	r, w := io.Pipe()
@@ -78,15 +78,11 @@ func (e *Emitter[T]) sendEvent(event eventchannel.Event[T]) error {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
-	if n, err := e.serial.Write(b); err != nil {
+	b = append(b, '\n')
+	if n, err := e.file.Write(b); err != nil {
 		return err
 	} else if n != len(b) {
 		return fmt.Errorf("incomplete write: want %d, sent %d", len(b), n)
-	}
-	if n, err := e.serial.Write([]byte{'\n'}); err != nil {
-		return err
-	} else if n != 1 {
-		return fmt.Errorf("incomplete write: want %d, sent %d", 1, n)
 	}
 	return nil
 }
@@ -102,7 +98,7 @@ func (e *Emitter[T]) Close() error {
 	if werr := e.sendEvent(eventchannel.Event[T]{GuestAction: eventchannel.ActionDone}); werr != nil && err != nil {
 		err = werr
 	}
-	_ = e.serial.Sync()
-	e.serial.Close()
+	_ = e.file.Sync()
+	e.file.Close()
 	return err
 }
