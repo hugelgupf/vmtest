@@ -159,6 +159,25 @@ func WithMergedInitramfs(o uroot.Opts) Opt {
 	}
 }
 
+// WithBusyboxCommands merges more busybox commands into the initramfs build options.
+func WithBusyboxCommands(cmds ...string) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		return v.MergeInitramfs(uroot.Opts{
+			Commands: uroot.BusyBoxCmds(cmds...),
+		})
+	}
+}
+
+// WithInitramfsFiles merges more extra files into the initramfs build options.
+// Syntax is like u-root's ExtraFiles.
+func WithInitramfsFiles(files ...string) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		return v.MergeInitramfs(uroot.Opts{
+			ExtraFiles: files,
+		})
+	}
+}
+
 // WithSharedDir shares a directory with the VM.
 func WithSharedDir(dir string) Opt {
 	return func(_ testing.TB, v *VMOptions) error {
