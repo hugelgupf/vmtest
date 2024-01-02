@@ -40,7 +40,7 @@ RUN cd libslirp && meson setup build && ninja -C build install
 RUN git clone --depth=1 --recurse-submodules --branch=v8.1.0-rc2 https://github.com/qemu/qemu;
 
 RUN cd qemu && mkdir build && cd build && ../configure                 \
-        --target-list="x86_64-softmmu aarch64-softmmu arm-softmmu riscv64-softmmu" \
+        --target-list="x86_64-softmmu aarch64-softmmu arm-softmmu riscv64-softmmu ppc64-softmmu" \
         --enable-virtfs                                                \
         --enable-slirp                                                 \
         --disable-docs                                                 \
@@ -52,7 +52,8 @@ RUN cd qemu && mkdir build && cd build && ../configure                 \
         qemu-system-x86_64        \
         qemu-system-aarch64       \
         qemu-system-arm           \
-        qemu-system-riscv64;
+        qemu-system-riscv64       \
+        qemu-system-ppc64;
 
 RUN git clone --depth=1 --branch=zappit https://github.com/hugelgupf/ldshim;
 
@@ -64,6 +65,7 @@ RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qem
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-aarch64;
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-arm;
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-riscv64;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-ppc64;
 
 RUN cp -rL /root/qemu/build/pc-bios/ /root/zqemu/pc-bios;
 RUN cp -rL /root/qemu/pc-bios/* /root/zqemu/pc-bios;
