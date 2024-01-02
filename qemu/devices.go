@@ -355,3 +355,32 @@ func EventChannelCallback[T any](name string, callback func(T)) Fn {
 		return EventChannel[T](name, ch)(alloc, opts)
 	}
 }
+
+// ReadEventFile reads events from a file that was written to using
+// guest.EventChannel.
+func ReadEventFile[T any](path string) ([]T, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var t []T
+	var gotDone bool
+	err = eventchannel.ProcessJSONByLine[eventchannel.Event[T]](f, func(c eventchannel.Event[T]) {
+		switch c.GuestAction {
+		case eventchannel.ActionGuestEvent:
+			t = append(t, c.Actual)
+
+		case eventchannel.ActionDone:
+			gotDone = true
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !gotDone {
+		return nil, ErrEventChannelMissingDoneEvent
+	}
+	return t, nil
+}
