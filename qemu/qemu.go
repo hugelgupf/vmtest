@@ -29,6 +29,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Netflix/go-expect"
@@ -478,9 +479,10 @@ type VM struct {
 	notifs notifications
 	cancel func()
 
-	wait    chan struct{}
-	waitMu  sync.Mutex
-	waitErr error
+	wait       chan struct{}
+	waitMu     sync.Mutex
+	waitErr    error
+	waitCalled atomic.Bool
 }
 
 // Cmdline is the command-line the VM was started with.
@@ -506,8 +508,15 @@ func (v *VM) Signal(sig os.Signal) error {
 	return v.cmd.Process.Signal(sig)
 }
 
+// Waited returns whether Wait has been called on VM.
+func (v *VM) Waited() bool {
+	return v.waitCalled.Load()
+}
+
 // Wait waits for the VM to exit and expects EOF from the expect console.
 func (v *VM) Wait() error {
+	v.waitCalled.Store(true)
+
 	<-v.wait
 
 	v.waitMu.Lock()
