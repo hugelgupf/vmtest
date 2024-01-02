@@ -192,6 +192,13 @@ func WithSharedDir(dir string) Opt {
 // initramfs, or fills them in from VMTEST_QEMU, VMTEST_QEMU_ARCH,
 // VMTEST_KERNEL and VMTEST_INITRAMFS environment variables as is documented by
 // the qemu package.
+//
+// By default, StartVM adds command-line streaming to t.Logf, appends
+// VMTEST_IN_GUEST=1 to the kernel command-line, and adds virtio random
+// support.
+//
+// StartVM will print the QEMU command-line for reproduction when the test
+// finishes. The test will fail if VM.Wait is not called.
 func StartVM(t testing.TB, opts ...Opt) *qemu.VM {
 	o := &VMOptions{
 		Name: t.Name(),
@@ -246,6 +253,11 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 
 	t.Cleanup(func() {
 		t.Logf("QEMU command line to reproduce %s:\n%s", o.Name, vm.CmdlineQuoted())
+	})
+	t.Cleanup(func() {
+		if !vm.Waited() {
+			t.Errorf("Must call Wait on *qemu.VM named %s", o.Name)
+		}
 	})
 	return vm
 }
