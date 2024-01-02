@@ -99,7 +99,7 @@ func runTest() error {
 		envv = append(envv, "GOCOVERDIR=/gocov")
 	}
 
-	testResultEvents, err := guest.SerialEventChannel[json2test.TestEvent]("go-test-results")
+	testResultEvents, err := guest.EventChannel[json2test.TestEvent]("/gotestdata/results.json")
 	if err != nil {
 		return err
 	}

@@ -30,7 +30,7 @@ type Emitter[T any] struct {
 // T should be the type of a JSON event being sent, matching the host
 // configuration on qemu.EventChannel reading from this channel.
 func EventChannel[T any](path string) (*Emitter[T], error) {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_SYNC, 0)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_SYNC, 0o777)
 	if err != nil {
 		return nil, err
 	}
