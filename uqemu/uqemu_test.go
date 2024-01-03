@@ -12,7 +12,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -29,12 +28,8 @@ import (
 )
 
 func TestOverride(t *testing.T) {
-	t.Cleanup(func() {
-		os.Setenv("VMTEST_INITRAMFS_OVERRIDE", "")
-	})
-
 	want := "foo.cpio"
-	os.Setenv("VMTEST_INITRAMFS_OVERRIDE", "foo.cpio")
+	t.Setenv("VMTEST_INITRAMFS_OVERRIDE", "foo.cpio")
 
 	got, err := qemu.OptionsFor(qemu.ArchUseEnvv, WithUrootInitramfs(nil, uroot.Opts{}, ""))
 	if err != nil {
