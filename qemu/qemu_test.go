@@ -302,9 +302,12 @@ func TestStartVM(t *testing.T) {
 	}
 }
 
-func ClearQEMUArgs() Fn {
+func clearArgs() Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
 		opts.QEMUArgs = nil
+		opts.Kernel = ""
+		opts.Initramfs = ""
+		opts.KernelArgs = ""
 		return nil
 	}
 }
@@ -313,10 +316,7 @@ func TestSubprocessTimesOut(t *testing.T) {
 	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 30"),
 		WithVMTimeout(5*time.Second),
-		ClearQEMUArgs(),
-		// In case the user is calling this test with env vars set.
-		WithKernel(""),
-		WithInitramfs(""),
+		clearArgs(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start 'VM': %v", err)
@@ -336,10 +336,7 @@ func TestSubprocessTimesOut(t *testing.T) {
 func TestSubprocessKilled(t *testing.T) {
 	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 60"),
-		ClearQEMUArgs(),
-		// In case the user is calling this test with env vars set.
-		WithKernel(""),
-		WithInitramfs(""),
+		clearArgs(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start 'VM': %v", err)
@@ -365,10 +362,7 @@ func TestTaskCanceledVMExits(t *testing.T) {
 
 	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 3"),
-		ClearQEMUArgs(),
-		// In case the user is calling this test with env vars set.
-		WithKernel(""),
-		WithInitramfs(""),
+		clearArgs(),
 
 		// Make sure that the test does not time out
 		// forever -- context must get canceled.
@@ -420,10 +414,7 @@ func TestExpectTimesOut(t *testing.T) {
 	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 30"),
 		WithVMTimeout(5*time.Second),
-		ClearQEMUArgs(),
-		// In case the user is calling this test with env vars set.
-		WithKernel(""),
-		WithInitramfs(""),
+		clearArgs(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start 'VM': %v", err)
@@ -450,10 +441,7 @@ func TestWaitTwice(t *testing.T) {
 	var errFoo = errors.New("foo")
 	vm, err := Start(ArchAMD64,
 		WithQEMUCommand("sleep 3"),
-		ClearQEMUArgs(),
-		// In case the user is calling this test with env vars set.
-		WithKernel(""),
-		WithInitramfs(""),
+		clearArgs(),
 
 		WithTask(Cleanup(func() error {
 			return errFoo
