@@ -460,3 +460,10 @@ func TestWaitTwice(t *testing.T) {
 		t.Fatalf("Wait = %v, want %v", err, errFoo)
 	}
 }
+
+func TestStartFails(t *testing.T) {
+	_, err := Start(ArchAMD64, WithQEMUCommand("sleep 2"), clearArgs(), WithAppendKernel("foobar"))
+	if !errors.Is(err, ErrKernelRequiredForArgs) {
+		t.Fatalf("Start = %v, want %v", err, ErrKernelRequiredForArgs)
+	}
+}
