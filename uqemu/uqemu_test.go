@@ -407,3 +407,41 @@ func TestEventChannelCallbackDoesNotHang(t *testing.T) {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
 }
+
+func TestInvalidInitramfs(t *testing.T) {
+	logger := &ulogtest.Logger{TB: t}
+
+	for _, tt := range []struct {
+		name       string
+		initramfs  uroot.Opts
+		initrdPath string
+	}{
+		{
+			name: "missing-tmpdir",
+			initramfs: uroot.Opts{
+				InitCmd:  "init",
+				UinitCmd: "qemutest1",
+				Commands: uroot.BusyBoxCmds(
+					"github.com/u-root/u-root/cmds/core/init",
+					"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
+				),
+			},
+			initrdPath: filepath.Join(t.TempDir(), "initramfs.cpio"),
+		},
+		{
+			name:       "output-path-is-dir",
+			initrdPath: t.TempDir(),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := qemu.Start(qemu.ArchUseEnvv,
+				WithUrootInitramfs(logger, tt.initramfs, tt.initrdPath),
+				qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+			)
+			if err == nil {
+				t.Fatalf("VM expected error, got nil")
+			}
+			t.Logf("Error: %v", err)
+		})
+	}
+}
