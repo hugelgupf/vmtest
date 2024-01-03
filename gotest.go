@@ -158,7 +158,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	}
 
 	// Set up u-root build options.
-	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(qemu.GuestArch().Arch())))
+	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(qemu.GuestArch())))
 
 	// Statically build tests and add them to the temporary directory.
 	testDir := filepath.Join(sharedDir, "tests")

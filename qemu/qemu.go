@@ -89,14 +89,6 @@ func (g Arch) Valid() bool {
 	return slices.Contains(SupportedArches, g)
 }
 
-// Arch returns the guest architecture.
-func (g Arch) Arch() Arch {
-	if g == ArchUseEnvv {
-		g = GuestArch()
-	}
-	return g
-}
-
 // Fn is a QEMU configuration option supplied to Start or OptionsFor.
 //
 // Fns rely on a QEMU architecture already having been determined.
@@ -192,7 +184,7 @@ func OptionsFor(arch Arch, fns ...Fn) (*Options, error) {
 		QEMUArgs: []string{"-nographic"},
 	}
 
-	if err := o.setArch(arch.Arch()); err != nil {
+	if err := o.setArch(arch); err != nil {
 		return nil, err
 	}
 
@@ -403,8 +395,8 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 }
 
 func (o *Options) setArch(arch Arch) error {
-	if len(arch) == 0 {
-		return ErrNoArch
+	if arch == ArchUseEnvv {
+		arch = GuestArch()
 	}
 	if !arch.Valid() {
 		return fmt.Errorf("%w: %s", ErrUnsupportedArch, arch)
