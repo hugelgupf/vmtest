@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -84,19 +83,9 @@ func TestCmdline(t *testing.T) {
 		"VMTEST_KERNEL",
 		"VMTEST_INITRAMFS",
 	}
-	// In case these env vars are actually set by calling env & used below
-	// in other tests, save their values, set them to empty for duration of
-	// test & restore them after.
-	savedEnv := make(map[string]string)
 	for _, key := range resetVars {
-		savedEnv[key] = os.Getenv(key)
-		os.Setenv(key, "")
+		t.Setenv(key, "")
 	}
-	t.Cleanup(func() {
-		for key, val := range savedEnv {
-			os.Setenv(key, val)
-		}
-	})
 
 	for _, tt := range []struct {
 		name string
@@ -186,13 +175,8 @@ func TestCmdline(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, val := range tt.envv {
-				os.Setenv(key, val)
+				t.Setenv(key, val)
 			}
-			t.Cleanup(func() {
-				for key := range tt.envv {
-					os.Setenv(key, "")
-				}
-			})
 			opts, err := OptionsFor(tt.arch, tt.fns...)
 			if err != nil {
 				t.Errorf("Options = %v, want nil", err)
