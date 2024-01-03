@@ -25,6 +25,7 @@ import (
 	"github.com/ncruces/go-fs/memfs"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
+	"golang.org/x/sys/unix"
 )
 
 func TestOverride(t *testing.T) {
@@ -345,5 +346,64 @@ func TestHTTPTask(t *testing.T) {
 
 	if err := vm.Wait(); err != nil {
 		t.Errorf("Error waiting for VM to exit: %v", err)
+	}
+}
+
+func TestEventChannelCallback(t *testing.T) {
+	initramfs := uroot.Opts{
+		InitCmd:  "init",
+		UinitCmd: "eventemitter",
+		TempDir:  t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/qemu/test/eventemitter",
+		),
+	}
+	var events []event.Event
+	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
+		WithUrootInitramfsT(t, initramfs),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.EventChannelCallback[event.Event]("test", func(e event.Event) {
+			events = append(events, e)
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	if _, err := vm.Console.ExpectString("TEST PASSED"); err != nil {
+		t.Errorf("Error expecting TEST PASSED: %v", err)
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Fatalf("Error waiting for VM to exit: %v", err)
+	}
+
+	// Expect event IDs 0 through 999, in order.
+	i := 0
+	for _, e := range events {
+		if e.ID != i {
+			t.Errorf("The %dth event has ID %d, want %d", i+1, e.ID, i)
+		}
+		i++
+	}
+	if i != 1000 {
+		t.Errorf("Expected last event ID to be 1000, got %d", i)
+	}
+}
+
+func TestEventChannelCallbackDoesNotHang(t *testing.T) {
+	_, err := qemu.Start(qemu.ArchAMD64,
+		// Some path that does not exist.
+		qemu.WithQEMUCommand(filepath.Join(t.TempDir(), "qemu")),
+
+		// Make sure this doesn't hang if process is never started.
+		qemu.EventChannelCallback[event.Event]("test", func(e event.Event) {}),
+	)
+
+	if !errors.Is(err, unix.ENOENT) {
+		t.Fatalf("Failed to start VM: %v", err)
 	}
 }
