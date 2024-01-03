@@ -82,6 +82,7 @@ func TestCmdline(t *testing.T) {
 		"VMTEST_QEMU_ARCH",
 		"VMTEST_KERNEL",
 		"VMTEST_INITRAMFS",
+		"VMTEST_TIMEOUT",
 	}
 	for _, key := range resetVars {
 		t.Setenv(key, "")
@@ -89,11 +90,17 @@ func TestCmdline(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
+
+		// Inputs
 		arch Arch
 		fns  []Fn
-		want []cmdlineEqualOpt
 		envv map[string]string
-		err  error
+
+		// Outputs
+		want        []cmdlineEqualOpt
+		wantTimeout time.Duration
+		err         error
+		cmdlineErr  error
 	}{
 		{
 			name: "simple",
@@ -106,10 +113,39 @@ func TestCmdline(t *testing.T) {
 			},
 		},
 		{
-			name: "kernel-args-fail",
+			name: "empty-kernel-and-args",
 			arch: ArchAMD64,
-			fns:  []Fn{WithQEMUCommand("qemu"), WithAppendKernel("printk=ttyS0")},
-			err:  ErrKernelRequiredForArgs,
+			fns: []Fn{
+				WithQEMUCommand("qemu"),
+				WithKernel(""),
+				// Empty should work.
+				WithAppendKernel(),
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+			},
+		},
+		{
+			name: "option-error",
+			arch: ArchAMD64,
+			fns: []Fn{
+				func(_ *IDAllocator, _ *Options) error {
+					return ErrKernelRequiredForArgs
+				},
+			},
+			err: ErrKernelRequiredForArgs,
+		},
+		{
+			name: "invalid-arch",
+			arch: Arch("amd66"),
+			err:  ErrUnsupportedArch,
+		},
+		{
+			name:       "kernel-args-fail",
+			arch:       ArchAMD64,
+			fns:        []Fn{WithQEMUCommand("qemu"), WithAppendKernel("printk=ttyS0")},
+			cmdlineErr: ErrKernelRequiredForArgs,
 		},
 		{
 			name: "kernel-args-initrd-with-precedence-over-env",
@@ -172,18 +208,45 @@ func TestCmdline(t *testing.T) {
 				withArg("-kernel", "./foobar"),
 			},
 		},
+		{
+			name: "env-vmtimeout",
+			arch: ArchAMD64,
+			envv: map[string]string{
+				"VMTEST_QEMU":    "qemu",
+				"VMTEST_TIMEOUT": "1m30s",
+			},
+			wantTimeout: 90 * time.Second,
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+			},
+		},
+		{
+			name: "env-vmtimeout-wrong",
+			arch: ArchAMD64,
+			envv: map[string]string{
+				"VMTEST_TIMEOUT": "900",
+			},
+			err: ErrInvalidTimeout,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, val := range tt.envv {
 				t.Setenv(key, val)
 			}
 			opts, err := OptionsFor(tt.arch, tt.fns...)
-			if err != nil {
-				t.Errorf("Options = %v, want nil", err)
+			if !errors.Is(err, tt.err) {
+				t.Errorf("Options = %v, want %v", err, tt.err)
+			}
+			if opts == nil {
+				return
+			}
+			if opts.VMTimeout != tt.wantTimeout {
+				t.Errorf("Options.VMTimeout = %s, want %s", opts.VMTimeout, tt.wantTimeout)
 			}
 			got, err := opts.Cmdline()
-			if !errors.Is(err, tt.err) {
-				t.Errorf("Cmdline = %v, want %v", err, tt.err)
+			if !errors.Is(err, tt.cmdlineErr) {
+				t.Errorf("Cmdline = %v, want %v", err, tt.cmdlineErr)
 			}
 
 			t.Logf("Got cmdline: %v", got)
