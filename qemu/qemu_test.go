@@ -87,6 +87,8 @@ func TestCmdline(t *testing.T) {
 	for _, key := range resetVars {
 		t.Setenv(key, "")
 	}
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
 
 	for _, tt := range []struct {
 		name string
@@ -176,17 +178,17 @@ func TestCmdline(t *testing.T) {
 			fns: []Fn{
 				WithQEMUCommand("qemu"),
 				WithKernel("./foobar"),
-				IDEBlockDevice("./disk1"),
-				IDEBlockDevice("./disk2"),
+				IDEBlockDevice(dir1),
+				IDEBlockDevice(dir2),
 			},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
 				withArg("-nographic"),
 				withArg("-kernel", "./foobar"),
-				withArg("-drive", "file=./disk1,if=none,id=drive0",
+				withArg("-drive", fmt.Sprintf("file=%s,if=none,id=drive0", dir1),
 					"-device", "ich9-ahci,id=ahci0",
 					"-device", "ide-hd,drive=drive0,bus=ahci0.0"),
-				withArg("-drive", "file=./disk2,if=none,id=drive1",
+				withArg("-drive", fmt.Sprintf("file=%s,if=none,id=drive1", dir2),
 					"-device", "ich9-ahci,id=ahci1",
 					"-device", "ide-hd,drive=drive1,bus=ahci1.0"),
 			},
