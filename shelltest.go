@@ -72,5 +72,6 @@ func StartVMAndRunCmds(t *testing.T, testCmds []string, o ...Opt) *qemu.VM {
 		WithQEMUFn(qemu.P9Directory(sharedDir, "shelltest")),
 		WithMergedInitramfs(initramfs),
 		CollectKernelCoverage(),
+		ShareGOCOVERDIR(),
 	}, o...)...)
 }
