@@ -24,6 +24,9 @@ func runTest() error {
 	defer cleanup()
 	defer guest.CollectKernelCoverage()
 
+	covCleanup := guest.GOCOVERDIR()
+	defer covCleanup()
+
 	mp, err := guest.Mount9PDir("/shelltestdata", "shelltest")
 	if err != nil {
 		return err
