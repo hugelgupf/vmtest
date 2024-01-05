@@ -8,6 +8,7 @@ require (
 	github.com/ncruces/go-fs v0.2.2
 	github.com/u-root/gobusybox/src v0.0.0-20231224233253-2944a440b6b6
 	github.com/u-root/u-root v0.11.1-0.20230807200058-f87ad7ccb594
+	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
 	golang.org/x/sync v0.5.0
 	golang.org/x/sys v0.15.0
@@ -30,7 +31,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
-	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
