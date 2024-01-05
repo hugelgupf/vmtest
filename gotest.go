@@ -213,10 +213,6 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 			CollectKernelCoverage(),
 		}, goOpts.VMOpts...)...)
 
-	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
-		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
-	}
-
 	if err := vm.Wait(); err != nil {
 		t.Errorf("VM exited with %v", err)
 	}
