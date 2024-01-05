@@ -87,29 +87,23 @@ func compileTestAndData(env *golang.Environ, pkg, destDir string, cover bool) er
 
 // GoTestOptions is configuration for RunGoTestsInVM.
 type GoTestOptions struct {
-	VMOpts      []Opt
 	Packages    []string
 	TestTimeout time.Duration
 }
 
+func (gto *GoTestOptions) apply(t testing.TB, opts ...GoTestOpt) error {
+	for _, opt := range opts {
+		if opt != nil {
+			if err := opt(t, gto); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // GoTestOpt is a configurator for GoTestOptions.
 type GoTestOpt func(t testing.TB, o *GoTestOptions) error
-
-// WithVMOpt appends the VM configurators for use with Go tests.
-func WithVMOpt(opts ...Opt) GoTestOpt {
-	return func(t testing.TB, o *GoTestOptions) error {
-		o.VMOpts = append(o.VMOpts, opts...)
-		return nil
-	}
-}
-
-// AppendPackage adds additional packages to the test.
-func AppendPackage(pkgs ...string) GoTestOpt {
-	return func(t testing.TB, o *GoTestOptions) error {
-		o.Packages = append(o.Packages, pkgs...)
-		return nil
-	}
-}
 
 // WithGoTestTimeout sets a timeout for individual Go test binaries.
 func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
@@ -119,11 +113,19 @@ func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
 	}
 }
 
-// RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
+// GoTestPackage adds packages to test.
+func GoTestPackage(pkgs ...string) GoTestOpt {
+	return func(t testing.TB, o *GoTestOptions) error {
+		o.Packages = append(o.Packages, pkgs...)
+		return nil
+	}
+}
+
+// RunGoTests compiles the tests found in pkgs and runs them in a QEMU VM
 // configured in options `o`. It collects the test results and provides a
 // pass/fail result of each individual test.
 //
-// RunGoTestsInVM runs tests and benchmarks, but not fuzz tests. Guest test
+// RunGoTests runs tests and benchmarks, but not fuzz tests. Guest test
 // architecture can be set with VMTEST_ARCH.
 //
 // The test environment in the VM is very minimal. If a test depends on other
@@ -138,120 +140,125 @@ func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
 // via the VMTEST_GO_PROFILE env var.
 //
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
-func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
-	SkipWithoutQEMU(t)
+func RunGoTests(opts ...GoTestOpt) Opt {
+	return func(t testing.TB, v *VMOptions) error {
+		goOpts := &GoTestOptions{}
+		if err := goOpts.apply(t, opts...); err != nil {
+			return err
+		}
+		if len(goOpts.Packages) == 0 {
+			return fmt.Errorf("no Go packages specified to test")
+		}
 
-	goOpts := &GoTestOptions{
-		Packages: pkgs,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			if err := opt(t, goOpts); err != nil {
+		sharedDir := testtmp.TempDir(t)
+		vmCoverProfile, ok := os.LookupEnv("VMTEST_GO_PROFILE")
+		if !ok {
+			t.Log("In-guest Go test coverage is not collected unless VMTEST_GO_PROFILE is set")
+		}
+
+		// Set up u-root build options.
+		env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(qemu.GuestArch())))
+
+		// Statically build tests and add them to the temporary directory.
+		testDir := filepath.Join(sharedDir, "tests")
+
+		// Compile the Go tests. Place the test binaries in a directory that
+		// will be shared with the VM using 9P.
+		for _, pkg := range goOpts.Packages {
+			pkgDir := filepath.Join(testDir, pkg)
+			if err := compileTestAndData(env, pkg, pkgDir, len(vmCoverProfile) > 0); err != nil {
 				t.Fatal(err)
 			}
 		}
-	}
 
-	sharedDir := testtmp.TempDir(t)
-	vmCoverProfile, ok := os.LookupEnv("VMTEST_GO_PROFILE")
-	if !ok {
-		t.Log("In-guest Go test coverage is not collected unless VMTEST_GO_PROFILE is set")
-	}
-
-	// Set up u-root build options.
-	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(qemu.GuestArch())))
-
-	// Statically build tests and add them to the temporary directory.
-	testDir := filepath.Join(sharedDir, "tests")
-
-	// Compile the Go tests. Place the test binaries in a directory that
-	// will be shared with the VM using 9P.
-	for _, pkg := range goOpts.Packages {
-		pkgDir := filepath.Join(testDir, pkg)
-		if err := compileTestAndData(env, pkg, pkgDir, len(vmCoverProfile) > 0); err != nil {
-			t.Fatal(err)
+		var uinitArgs []string
+		if len(vmCoverProfile) > 0 {
+			uinitArgs = append(uinitArgs, "-coverprofile=/gotestdata/coverage.profile")
 		}
-	}
+		if goOpts.TestTimeout > 0 {
+			uinitArgs = append(uinitArgs, fmt.Sprintf("-test_timeout=%s", goOpts.TestTimeout))
+		}
+		initramfs := uroot.Opts{
+			Env: env,
+			Commands: append(
+				uroot.BusyBoxCmds(
+					"github.com/u-root/u-root/cmds/core/dhclient",
+					"github.com/u-root/u-root/cmds/core/init",
+					"github.com/hugelgupf/vmtest/vminit/gouinit",
+				),
+				uroot.BinaryCmds("cmd/test2json")...),
+			InitCmd:   "init",
+			UinitCmd:  "gouinit",
+			UinitArgs: uinitArgs,
+			TempDir:   testtmp.TempDir(t),
+		}
 
-	var uinitArgs []string
-	if len(vmCoverProfile) > 0 {
-		uinitArgs = append(uinitArgs, "-coverprofile=/gotestdata/coverage.profile")
-	}
-	if goOpts.TestTimeout > 0 {
-		uinitArgs = append(uinitArgs, fmt.Sprintf("-test_timeout=%s", goOpts.TestTimeout))
-	}
-	initramfs := uroot.Opts{
-		Env: env,
-		Commands: append(
-			uroot.BusyBoxCmds(
-				"github.com/u-root/u-root/cmds/core/dhclient",
-				"github.com/u-root/u-root/cmds/core/init",
-				"github.com/hugelgupf/vmtest/vminit/gouinit",
-			),
-			uroot.BinaryCmds("cmd/test2json")...),
-		InitCmd:   "init",
-		UinitCmd:  "gouinit",
-		UinitArgs: uinitArgs,
-		TempDir:   testtmp.TempDir(t),
-	}
+		qemuFns := []qemu.Fn{
+			qemu.P9Directory(sharedDir, "gotests"),
+		}
+		goCov := os.Getenv("GOCOVERDIR")
+		if goCov != "" {
+			qemuFns = append(qemuFns,
+				qemu.P9Directory(goCov, "gocov"),
+				qemu.WithAppendKernel("VMTEST_GOCOVERDIR=gocov"),
+			)
+		}
 
-	qemuFns := []qemu.Fn{
-		qemu.P9Directory(sharedDir, "gotests"),
-	}
-	goCov := os.Getenv("GOCOVERDIR")
-	if goCov != "" {
-		qemuFns = append(qemuFns,
-			qemu.P9Directory(goCov, "gocov"),
-			qemu.WithAppendKernel("VMTEST_GOCOVERDIR=gocov"),
-		)
-	}
-	// Create the initramfs and start the VM.
-	vm := StartVM(t, append(
-		[]Opt{
+		v.AddQEMUOpt(qemuFns...)
+
+		// When the VM exits, check for coverage data.
+		if len(vmCoverProfile) > 0 {
+			v.AddQEMUOpt(qemu.WithTask(qemu.WaitVMStarted(qemu.Cleanup(func() error {
+				// Collect Go coverage.
+				if err := cp.Copy(filepath.Join(sharedDir, "coverage.profile"), vmCoverProfile); err != nil {
+					return fmt.Errorf("could not copy coverage file: %v", err)
+				}
+				return nil
+			}))))
+		}
+
+		// When the VM exits, check for error events.
+		v.AddQEMUOpt(qemu.WithTask(qemu.WaitVMStarted(qemu.Cleanup(func() error {
+			errors, err := qemu.ReadEventFile[testevent.ErrorEvent](filepath.Join(sharedDir, "errors.json"))
+			if err != nil {
+				return fmt.Errorf("reading test events: %v", err)
+			}
+			for _, e := range errors {
+				t.Errorf("Binary %s experienced error: %s", e.Binary, e.Error)
+			}
+			return nil
+		}))))
+
+		// When the VM exits, check for Go test failures.
+		v.AddQEMUOpt(qemu.WithTask(qemu.WaitVMStarted(qemu.Cleanup(func() error {
+			tc := json2test.NewTestCollector()
+			events, err := qemu.ReadEventFile[json2test.TestEvent](filepath.Join(sharedDir, "results.json"))
+			if err != nil {
+				return fmt.Errorf("reading Go test events: %v", err)
+			}
+			for _, event := range events {
+				tc.Handle(event)
+			}
+			// TODO: check that tc.Tests == tests
+			for pkg, test := range tc.Tests {
+				switch test.State {
+				case json2test.StateFail:
+					t.Errorf("Test %v failed:\n%v", pkg, test.FullOutput)
+				case json2test.StateSkip:
+					t.Logf("Test %v skipped", pkg)
+				case json2test.StatePass:
+					// Nothing.
+				default:
+					t.Errorf("Test %v left in state %v:\n%v", pkg, test.State, test.FullOutput)
+				}
+			}
+			return nil
+		}))))
+
+		return v.Apply(t,
 			WithMergedInitramfs(initramfs),
-			WithQEMUFn(qemuFns...),
 			CollectKernelCoverage(),
-		}, goOpts.VMOpts...)...)
-
-	if err := vm.Wait(); err != nil {
-		t.Errorf("VM exited with %v", err)
-	}
-
-	// Collect Go coverage.
-	if len(vmCoverProfile) > 0 {
-		if err := cp.Copy(filepath.Join(sharedDir, "coverage.profile"), vmCoverProfile); err != nil {
-			t.Errorf("Could not copy coverage file: %v", err)
-		}
-	}
-
-	errors, err := qemu.ReadEventFile[testevent.ErrorEvent](filepath.Join(sharedDir, "errors.json"))
-	if err != nil {
-		t.Errorf("Reading test events: %v", err)
-	}
-	for _, e := range errors {
-		t.Errorf("Binary %s experienced error: %s", e.Binary, e.Error)
-	}
-
-	tc := json2test.NewTestCollector()
-	events, err := qemu.ReadEventFile[json2test.TestEvent](filepath.Join(sharedDir, "results.json"))
-	if err != nil {
-		t.Errorf("Reading Go test events: %v", err)
-	}
-	for _, event := range events {
-		tc.Handle(event)
-	}
-	// TODO: check that tc.Tests == tests
-	for pkg, test := range tc.Tests {
-		switch test.State {
-		case json2test.StateFail:
-			t.Errorf("Test %v failed:\n%v", pkg, test.FullOutput)
-		case json2test.StateSkip:
-			t.Logf("Test %v skipped", pkg)
-		case json2test.StatePass:
-			// Nothing.
-		default:
-			t.Errorf("Test %v left in state %v:\n%v", pkg, test.State, test.FullOutput)
-		}
+		)
 	}
 }
 

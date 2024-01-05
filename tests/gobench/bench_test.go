@@ -8,7 +8,7 @@ import (
 )
 
 func TestRunBenchmarkInVM(t *testing.T) {
-	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gobench"})
+	vmtest.RunVM(t, vmtest.RunGoTests(vmtest.GoTestPackage("github.com/hugelgupf/vmtest/tests/gobench")))
 }
 
 func fib(n int) int {

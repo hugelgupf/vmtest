@@ -51,6 +51,23 @@ type VMOptions struct {
 	Initramfs *uroot.Opts
 }
 
+// Apply applies the configurators.
+func (v *VMOptions) Apply(t testing.TB, opts ...Opt) error {
+	for _, opt := range opts {
+		if opt != nil {
+			if err := opt(t, v); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// AddQEMUOpt adds a QEMU Fn.
+func (v *VMOptions) AddQEMUOpt(fn ...qemu.Fn) {
+	v.QEMUOpts = append(v.QEMUOpts, fn...)
+}
+
 func mergeAndDedup(s, t []string) []string {
 	m := make(map[string]struct{})
 	for _, v := range s {
@@ -212,14 +229,28 @@ func StartVM(t testing.TB, opts ...Opt) *qemu.VM {
 		ConsoleOutputPrefix: "vm",
 	}
 
-	for _, opt := range opts {
-		if opt != nil {
-			if err := opt(t, o); err != nil {
-				t.Fatal(err)
-			}
-		}
+	if err := o.Apply(t, opts...); err != nil {
+		t.Fatal(err)
 	}
 	return startVM(t, o)
+}
+
+// RunVM starts a VM with StartVM and then waits for it to exit.
+func RunVM(t testing.TB, opts ...Opt) {
+	o := &VMOptions{
+		Name: t.Name(),
+		// Unnamed VMs likely means there's only 1 VM in the test. No
+		// need to take up screen width with the test name.
+		ConsoleOutputPrefix: "vm",
+	}
+
+	if err := o.Apply(t, opts...); err != nil {
+		t.Fatal(err)
+	}
+	vm := startVM(t, o)
+	if err := vm.Wait(); err != nil {
+		t.Errorf("Guest %s wait: %v", o.Name, err)
+	}
 }
 
 func startVM(t testing.TB, o *VMOptions) *qemu.VM {

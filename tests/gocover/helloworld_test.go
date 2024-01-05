@@ -33,7 +33,7 @@ func TestStartVM(t *testing.T) {
 	}
 
 	t.Run("test", func(t *testing.T) {
-		vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gocover"})
+		vmtest.RunVM(t, vmtest.RunGoTests(vmtest.GoTestPackage("github.com/hugelgupf/vmtest/tests/gocover")))
 	})
 
 	// Check VMTEST_GO_PROFILE coverage collected.
