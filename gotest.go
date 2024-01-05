@@ -19,6 +19,7 @@ import (
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/uio/cp"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -163,16 +164,6 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	// Statically build tests and add them to the temporary directory.
 	testDir := filepath.Join(sharedDir, "tests")
 
-	if len(vmCoverProfile) > 0 {
-		f, err := os.Create(filepath.Join(sharedDir, "coverage.profile"))
-		if err != nil {
-			t.Fatalf("Could not create coverage file %v", err)
-		}
-		if err := f.Close(); err != nil {
-			t.Fatalf("Could not close coverage.profile: %v", err)
-		}
-	}
-
 	// Compile the Go tests. Place the test binaries in a directory that
 	// will be shared with the VM using 9P.
 	for _, pkg := range goOpts.Packages {
@@ -232,24 +223,8 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 
 	// Collect Go coverage.
 	if len(vmCoverProfile) > 0 {
-		cov, err := os.Open(filepath.Join(sharedDir, "coverage.profile"))
-		if err != nil {
-			t.Fatalf("No coverage file shared from VM: %v", err)
-		}
-
-		out, err := os.OpenFile(vmCoverProfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-		if err != nil {
-			t.Fatalf("Could not open vmcoverageprofile: %v", err)
-		}
-
-		if _, err := io.Copy(out, cov); err != nil {
-			t.Fatalf("Error copying coverage: %s", err)
-		}
-		if err := out.Close(); err != nil {
-			t.Fatalf("Could not close vmcoverageprofile: %v", err)
-		}
-		if err := cov.Close(); err != nil {
-			t.Fatalf("Could not close coverage.profile: %v", err)
+		if err := cp.Copy(filepath.Join(sharedDir, "coverage.profile"), vmCoverProfile); err != nil {
+			t.Errorf("Could not copy coverage file: %v", err)
 		}
 	}
 
