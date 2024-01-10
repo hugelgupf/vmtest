@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/hugelgupf/vmtest/guest"
-	"github.com/hugelgupf/vmtest/qemu/test/eventemitter/event"
+	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
 	"golang.org/x/sys/unix"
 )
 
