@@ -72,6 +72,14 @@ To keep the artifacts around locally to reproduce the same test:
 runvmtest --keep-artifacts -- go test -v ./tests/gohello
 ```
 
+The default kernel and QEMU supplied by `runvmtest` may of course not work well
+for your tests. Check out for example
+[images/kernel-arm64](./images/kernel-arm64) for building a kernel-image-only
+Docker image, and [images/qemu](./images/qemu/Dockerfile) for how we build a
+Docker image with just QEMU binaries and their dependencies.
+
+TODO: `runvmtest` YAML configuration to supply your own Docker images.
+
 ### Example: qemu API
 
 ```go
