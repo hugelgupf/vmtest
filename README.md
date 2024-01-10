@@ -4,7 +4,73 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/hugelgupf/vmtest)](https://goreportcard.com/report/github.com/hugelgupf/vmtest)
 [![GoDoc](https://godoc.org/github.com/hugelgupf/vmtest?status.svg)](https://godoc.org/github.com/hugelgupf/vmtest)
 
-Fun stuff coming
+vmtest is a Go API for launching QEMU VMs.
+
+* [The `qemu` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu)
+  contains APIs for
+
+    * launching QEMU processes
+    * configuring QEMU devices
+    * running tasks (goroutines) bound to the VM process lifetime, and
+    * using expect-scripting to check for outputs.
+
+* [The `uqemu` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/uqemu)
+  can be used to configure a u-root initramfs to be used as the boot root file
+  system.
+
+* [The `vmtest` package](https://pkg.go.dev/github.com/hugelgupf/vmtest)
+  contains
+
+    * a `testing.TB` wrapper around the `qemu` API with some safe defaults
+      (logging serial console to `t.Logf`, etc)
+    * an API for running test shell scripts in the guest
+    * an API for running Go unit tests in the guest and collecting their
+      results.
+
+Out of these, the `vmtest` API is still the most raw and being iterated on.
+
+## Running Tests
+
+The `qemu` API picks up the following values from env vars by default:
+
+* `VMTEST_QEMU`: QEMU binary + arguments (e.g.
+  `VMTEST_QEMU="qemu-system-x86_64 -enable-kvm"`)
+* `VMTEST_KERNEL`: Kernel to boot.
+* `VMTEST_ARCH`: Guest architecture (same as GOARCH values). Must match the QEMU
+  binary supplied.
+* `VMTEST_TIMEOUT`: Timeout value (e.g. `1m20s` -- parsed by Go's
+  `time.ParseDuration`).
+* `VMTEST_INITRAMFS`: Initramfs to boot.
+
+These values can be overriden in the Go API, but typically all except
+`VMTEST_INITRAMFS` are not.
+
+The `runvmtest` tool will automatically download `VMTEST_QEMU` and
+`VMTEST_KERNEL` for use with tests based on a provided `VMTEST_ARCH`. E.g.
+
+```sh
+go install github.com/hugelgupf/vmtest/tools/runvmtest@latest
+# See how it works:
+runvmtest -- bash -c "echo \$VMTEST_KERNEL -- \$VMTEST_QEMU"
+
+# Intended usage:
+runvmtest -- go test -v ./tests/gohello
+# Or run an Arm64 guest:
+VMTEST_ARCH=arm64 runvmtest -- go test -v ./tests/gohello
+```
+
+You can also override one or both, which will just be passed through:
+
+```sh
+# Will only download VMTEST_KERNEL.
+VMTEST_ARCH=arm64 VMTEST_QEMU="qemu-system-aarch64 -enable-kvm" runvmtest -- go test -v ./tests/gohello
+```
+
+To keep the artifacts around locally to reproduce the same test:
+
+```s
+runvmtest --keep-artifacts -- go test -v ./tests/gohello
+```
 
 ### Example: qemu API
 
@@ -46,7 +112,6 @@ func TestStartVM(t *testing.T) {
 
 ```go
 func TestStartVM(t *testing.T) {
-    l := &ulogtest.Logger{TB: t}
     initramfs := uroot.Opts{
         TempDir:   t.TempDir(),
         InitCmd:   "init",
@@ -62,7 +127,7 @@ func TestStartVM(t *testing.T) {
     }
     vm, err := qemu.Start(
         qemu.ArchUseEnvv,
-        uqemu.WithUrootInitramfs(l, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+        uqemu.WithUrootInitramfsT(t, initramfs),
 
         // Other options...
     )
@@ -87,8 +152,45 @@ func TestStartVM(t *testing.T) {
                 return exec.CommandContext(ctx, "sleep", "900").Run()
             },
         ),
+
+        // Task that runs when the VM exits.
+        qemu.WithTask(qemu.Cleanup(func() error {
+            // Do something.
+            return fmt.Errorf("this is returned by vm.Wait()")
+        })),
+
+        // Task that only runs when VM starts.
+        qemu.WithTask(qemu.WaitVMStarted(...)),
     )
     // ...
 }
 ```
 
+### Example: vmtest API
+
+```go
+func TestStart(t *testing.T) {
+    initramfs := uroot.Opts{
+        Commands: uroot.BusyBoxCmds(
+            "github.com/u-root/u-root/cmds/core/init",
+            "github.com/u-root/u-root/cmds/core/elvish",
+            "github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+        ),
+        InitCmd:  "init",
+        UinitCmd: "helloworld",
+        TempDir:  t.TempDir(),
+    }
+
+    vm := vmtest.StartVM(t, vmtest.WithMergedInitramfs(initramfs))
+    if _, err := vm.Console.ExpectString("Hello world"); err != nil {
+        t.Error(err)
+    }
+    if err := vm.Wait(); err != nil {
+        t.Error(err)
+    }
+}
+```
+
+### Example: Go unit tests in VM
+
+* See [tests/gobench](./tests/gobench/bench_test.go)
