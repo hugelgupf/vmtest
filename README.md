@@ -10,7 +10,8 @@ vmtest is a Go API for launching QEMU VMs.
   contains APIs for
 
     * launching QEMU processes
-    * configuring QEMU devices
+    * configuring QEMU devices (such as a shared 9P directory, networking,
+      serial logging, etc)
     * running tasks (goroutines) bound to the VM process lifetime, and
     * using expect-scripting to check for outputs.
 
@@ -23,7 +24,7 @@ vmtest is a Go API for launching QEMU VMs.
 
     * a `testing.TB` wrapper around the `qemu` API with some safe defaults
       (logging serial console to `t.Logf`, etc)
-    * an API for running test shell scripts in the guest
+    * an API for running shell scripts in the guest
     * an API for running Go unit tests in the guest and collecting their
       results.
 
@@ -37,24 +38,27 @@ The `qemu` API picks up the following values from env vars by default:
   `VMTEST_QEMU="qemu-system-x86_64 -enable-kvm"`)
 * `VMTEST_KERNEL`: Kernel to boot.
 * `VMTEST_ARCH`: Guest architecture (same as GOARCH values). Must match the QEMU
-  binary supplied.
+  binary supplied. If not supplied, defaults to `runtime.GOARCH`, i.e. it
+  matches the host's GOARCH.
 * `VMTEST_TIMEOUT`: Timeout value (e.g. `1m20s` -- parsed by Go's
   `time.ParseDuration`).
 * `VMTEST_INITRAMFS`: Initramfs to boot.
 
-These values can be overriden in the Go API, but typically all except
-`VMTEST_INITRAMFS` are not.
+These values can be overriden in the Go API, but typically only
+`VMTEST_INITRAMFS` and `VMTEST_TIMEOUT` are.
 
-The `runvmtest` tool will automatically download `VMTEST_QEMU` and
+The `runvmtest` tool automatically downloads `VMTEST_QEMU` and
 `VMTEST_KERNEL` for use with tests based on a provided `VMTEST_ARCH`. E.g.
 
 ```sh
 go install github.com/hugelgupf/vmtest/tools/runvmtest@latest
+
 # See how it works:
 runvmtest -- bash -c "echo \$VMTEST_KERNEL -- \$VMTEST_QEMU"
 
 # Intended usage:
 runvmtest -- go test -v ./tests/gohello
+
 # Or run an Arm64 guest:
 VMTEST_ARCH=arm64 runvmtest -- go test -v ./tests/gohello
 ```
@@ -79,6 +83,8 @@ Docker image, and [images/qemu](./images/qemu/Dockerfile) for how we build a
 Docker image with just QEMU binaries and their dependencies.
 
 TODO: `runvmtest` YAML configuration to supply your own Docker images.
+
+## Writing Tests
 
 ### Example: qemu API
 
