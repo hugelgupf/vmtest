@@ -21,7 +21,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/network"
-	"github.com/hugelgupf/vmtest/qemu/test/eventemitter/event"
+	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
 	"github.com/ncruces/go-fs/memfs"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -77,7 +77,7 @@ func TestStartVM(t *testing.T) {
 		TempDir:  tmp,
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
+			"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
 		),
 	}
 	vm, err := qemu.Start(qemu.ArchUseEnvv, WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
@@ -113,7 +113,7 @@ func TestTask(t *testing.T) {
 		TempDir:  tmp,
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
+			"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
 		),
 	}
 	vm, err := qemu.Start(
@@ -188,7 +188,7 @@ func TestEventChannel(t *testing.T) {
 		TempDir:  t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/test/eventemitter",
+			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
 		),
 	}
 	events := make(chan event.Event)
@@ -235,7 +235,7 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 		TempDir:   t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/test/eventemitter",
+			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
 		),
 	}
 	events := make(chan event.Event)
@@ -321,7 +321,7 @@ func TestHTTPTask(t *testing.T) {
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/u-root/u-root/cmds/core/dhclient",
-			"github.com/hugelgupf/vmtest/qemu/test/httpdownload",
+			"github.com/hugelgupf/vmtest/tests/cmds/httpdownload",
 		),
 	}
 	vm, err := qemu.Start(
@@ -356,7 +356,7 @@ func TestEventChannelCallback(t *testing.T) {
 		TempDir:  t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/qemu/test/eventemitter",
+			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
 		),
 	}
 	var events []event.Event
@@ -423,7 +423,7 @@ func TestInvalidInitramfs(t *testing.T) {
 				UinitCmd: "qemutest1",
 				Commands: uroot.BusyBoxCmds(
 					"github.com/u-root/u-root/cmds/core/init",
-					"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
+					"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
 				),
 			},
 			initrdPath: filepath.Join(t.TempDir(), "initramfs.cpio"),

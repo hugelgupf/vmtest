@@ -279,7 +279,7 @@ func TestStartVM(t *testing.T) {
 	}
 	uopts.AddBusyBoxCommands(
 		"github.com/u-root/u-root/cmds/core/init",
-		"github.com/hugelgupf/vmtest/qemu/test/qemutest1",
+		"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
 	)
 	if err := uroot.CreateInitramfs(logger, uopts); err != nil {
 		t.Fatalf("error creating initramfs: %v", err)
