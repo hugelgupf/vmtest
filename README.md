@@ -168,29 +168,8 @@ func TestStartVM(t *testing.T) {
 
 ### Example: vmtest API
 
-```go
-func TestStart(t *testing.T) {
-    initramfs := uroot.Opts{
-        Commands: uroot.BusyBoxCmds(
-            "github.com/u-root/u-root/cmds/core/init",
-            "github.com/u-root/u-root/cmds/core/elvish",
-            "github.com/hugelgupf/vmtest/tests/cmds/helloworld",
-        ),
-        InitCmd:  "init",
-        UinitCmd: "helloworld",
-        TempDir:  t.TempDir(),
-    }
-
-    vm := vmtest.StartVM(t, vmtest.WithMergedInitramfs(initramfs))
-    if _, err := vm.Console.ExpectString("Hello world"); err != nil {
-        t.Error(err)
-    }
-    if err := vm.Wait(); err != nil {
-        t.Error(err)
-    }
-}
-```
+See [tests/startexample](./tests/startexample/vm_test.go)
 
 ### Example: Go unit tests in VM
 
-* See [tests/gobench](./tests/gobench/bench_test.go)
+See [tests/gobench](./tests/gobench/bench_test.go)
