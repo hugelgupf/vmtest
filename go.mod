@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/creack/pty v1.1.21
-	github.com/ncruces/go-fs v0.2.2
 	github.com/u-root/gobusybox/src v0.0.0-20231224233253-2944a440b6b6
 	github.com/u-root/u-root v0.11.1-0.20230807200058-f87ad7ccb594
 	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63
@@ -36,6 +35,5 @@ require (
 	github.com/vishvananda/netns v0.0.4 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
 	src.elv.sh v0.16.0-rc1.0.20220116211855-fda62502ad7f // indirect
 )
