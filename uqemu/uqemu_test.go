@@ -17,12 +17,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/network"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
-	"github.com/ncruces/go-fs/memfs"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 	"golang.org/x/sys/unix"
@@ -301,11 +301,16 @@ func TestKernelPanic(t *testing.T) {
 }
 
 func TestHTTPTask(t *testing.T) {
-	fs := memfs.Create()
-	_ = fs.Create("foobar", "text/plain", time.Now(), strings.NewReader("Hello, world!"))
+	fs := fstest.MapFS{
+		"foobar": &fstest.MapFile{
+			Data:    []byte("Hello, world!"),
+			Mode:    0o777,
+			ModTime: time.Now(),
+		},
+	}
 
 	// Serve HTTP on the host on a random port.
-	http.Handle("/", fs)
+	http.Handle("/", http.FileServer(http.FS(fs)))
 	ln, err := net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatal(err)
