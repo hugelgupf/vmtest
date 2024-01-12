@@ -1,0 +1,25 @@
+amd64:
+  VMTEST_QEMU:
+    container: "ghcr.io/hugelgupf/vmtest/qemu:main"
+    template: "{{.qemu}}/bin/qemu-system-x86_64 -L {{.qemu}}/pc-bios -m 1G"
+    directories:
+      qemu: "/zqemu"
+
+  VMTEST_KERNEL:
+    container: "ghcr.io/hugelgupf/vmtest/kernel-amd64:main"
+    template: "{{.bzImage}}"
+    files:
+      bzImage: "/bzImage"
+
+arm64:
+  VMTEST_QEMU:
+    container: "ghcr.io/hugelgupf/vmtest/qemu:main"
+    template: "{{.qemu}}/bin/qemu-system-aarch64 -machine virt -cpu max -m 1G -L {{.qemu}}/pc-bios"
+    directories:
+      qemu: "/zqemu"
+
+  VMTEST_KERNEL:
+    container: "ghcr.io/hugelgupf/vmtest/kernel-arm64:main"
+    template: "{{.Image}}"
+    files:
+      bzImage: "/Image"
