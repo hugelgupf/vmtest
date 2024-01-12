@@ -2,7 +2,10 @@ module github.com/hugelgupf/vmtest/tools/runvmtest
 
 go 1.21
 
-require dagger.io/dagger v0.9.4
+require (
+	dagger.io/dagger v0.9.4
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/99designs/gqlgen v0.17.31 // indirect
