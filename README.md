@@ -77,12 +77,14 @@ runvmtest --keep-artifacts -- go test -v ./tests/gohello
 ```
 
 The default kernel and QEMU supplied by `runvmtest` may of course not work well
-for your tests. Check out for example
+for your tests. You can configure `runvmtest` to supply your own `VMTEST_KERNEL`
+and `VMTEST_QEMU` -- but also any additional environment variables. See
+[`runvmtest` configuration](#custom-runvmtest-configuration).
+
+To build your own kernel or QEMU, check out
 [images/kernel-arm64](./images/kernel-arm64) for building a kernel-image-only
 Docker image, and [images/qemu](./images/qemu/Dockerfile) for how we build a
 Docker image with just QEMU binaries and their dependencies.
-
-TODO: `runvmtest` YAML configuration to supply your own Docker images.
 
 ## Writing Tests
 
@@ -187,3 +189,29 @@ See [tests/startexample](./tests/startexample/vm_test.go)
 ### Example: Go unit tests in VM
 
 See [tests/gobench](./tests/gobench/bench_test.go)
+
+## Custom runvmtest configuration
+
+`runvmtest` tries to read a config from `.vmtest.yaml` in the current working
+directory or any of its parents.
+
+Given this is a Go-based test framework, the recommendation would be to place
+`.vmtest.yaml` in the same directory as your `go.mod` so that the config is
+available anywhere `go test` is for that module.
+
+`runvmtest` can be configured to set up any number of environment variables.
+Config format looks like this:
+
+```
+VMTEST_ARCH:
+  ENV_VAR:
+    container: <container name>
+    template: "{{.somedir}} -foobar {{.somefile}}"
+    files:
+      somefile: <path in container to copy to a tmpfile>
+    directories:
+      somedir: <path in container to copy to a tmpdir>
+```
+
+Check out the example in
+[tools/runvmtest/example-vmtest.yaml](./tools/runvmtest/example-vmtest.yaml).
