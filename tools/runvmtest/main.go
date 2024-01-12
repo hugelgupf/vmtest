@@ -21,10 +21,12 @@ import (
 	"text/template"
 
 	"dagger.io/dagger"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	keepArtifacts = flag.Bool("keep-artifacts", false, "Keep artifacts directory available for further local tests")
+	configFile    = flag.String("config", "", "Path to YAML config file")
 )
 
 func main() {
@@ -59,7 +61,7 @@ type EnvVar struct {
 	Directories map[string]string
 }
 
-var configs = Config{
+var defaultConfig = Config{
 	"amd64": map[string]EnvVar{
 		"VMTEST_KERNEL": {
 			Container: "ghcr.io/hugelgupf/vmtest/kernel-amd64:main",
@@ -98,25 +100,58 @@ var configs = Config{
 	},
 }
 
-func defaultConfig() EnvConfig {
+func archConfig(config Config) EnvConfig {
 	arch := os.Getenv("VMTEST_ARCH")
-	if c, ok := configs[arch]; ok {
+	if c, ok := config[arch]; ok {
 		return c
 	}
-	if c, ok := configs[runtime.GOARCH]; ok {
+	if c, ok := config[runtime.GOARCH]; ok {
 		return c
 	}
 	// On other architectures, user has to provide all values via flags.
 	return EnvConfig{}
 }
 
+func findConfigFile(name string) (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for dir != "/" {
+		p := filepath.Join(dir, name)
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+		dir = filepath.Dir(dir)
+	}
+	return "", fmt.Errorf("could not find %s in current directory or any parent", name)
+}
+
 func run() error {
 	flag.Parse()
-	config := defaultConfig()
 
 	if flag.NArg() < 2 {
 		return fmt.Errorf("too few arguments: usage: `%s -- ./test-to-run`", os.Args[0])
 	}
+
+	var configPath string
+	if *configFile != "" {
+		configPath = *configFile
+	} else {
+		configPath, _ = findConfigFile(".vmtest.yaml")
+	}
+
+	var config Config = defaultConfig
+	if configPath != "" {
+		b, err := os.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		if err := yaml.Unmarshal(b, &config); err != nil {
+			return fmt.Errorf("could not decode YAML config from %s: %v", configPath, err)
+		}
+	}
+	c := archConfig(config)
 
 	ctx := context.Background()
 	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
@@ -125,7 +160,7 @@ func run() error {
 	}
 	defer client.Close()
 
-	return runNatively(ctx, client, config, flag.Args())
+	return runNatively(ctx, client, c, flag.Args())
 }
 
 func runNatively(ctx context.Context, client *dagger.Client, config EnvConfig, args []string) error {
