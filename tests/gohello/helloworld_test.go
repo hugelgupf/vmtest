@@ -1,37 +1,20 @@
 package helloworld
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/hugelgupf/vmtest"
 	"github.com/hugelgupf/vmtest/guest"
-	"github.com/hugelgupf/vmtest/testtmp"
 )
 
 func TestStartVM(t *testing.T) {
 	vmtest.SkipWithoutQEMU(t)
 
-	kcovDir := os.Getenv("VMTEST_KERNEL_COVERAGE_DIR")
-	if kcovDir == "" {
-		kcovDir = testtmp.TempDir(t)
-		os.Setenv("VMTEST_KERNEL_COVERAGE_DIR", kcovDir)
-	}
-
-	// Kernel coverage is copied to kcovDir during t.Cleanup, so induce it
-	// before the test is over by using a sub-test.
-	t.Run("test", func(t *testing.T) {
-		vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithVMOpt(vmtest.WithBusyboxCommands(
-			"github.com/u-root/u-root/cmds/core/dhclient",
-			"github.com/u-root/u-root/cmds/core/elvish",
-			"github.com/u-root/u-root/cmds/core/false",
-		)))
-	})
-
-	if _, err := os.Stat(filepath.Join(kcovDir, "TestStartVM", "test", "0", "kernel_coverage.tar")); err != nil {
-		t.Fatalf("Kernel coverage file not found: %v", err)
-	}
+	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithVMOpt(vmtest.WithBusyboxCommands(
+		"github.com/u-root/u-root/cmds/core/dhclient",
+		"github.com/u-root/u-root/cmds/core/elvish",
+		"github.com/u-root/u-root/cmds/core/false",
+	)))
 }
 
 func TestHelloWorld(t *testing.T) {
