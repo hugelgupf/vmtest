@@ -9,6 +9,7 @@ on:
       - 'images/kernel-arm/*'
       - 'images/kernel-arm64/*'
       - 'images/kernel-amd64/*'
+      - 'images/kernel-riscv64/*'
       - '.github/workflows/kernel-images.yml'
       - '.github/actions/build-vmtest-ci-image.yml'
     branches: ['main']
@@ -21,6 +22,7 @@ on:
       - 'images/kernel-arm/*'
       - 'images/kernel-arm64/*'
       - 'images/kernel-amd64/*'
+      - 'images/kernel-riscv64/*'
       - '.github/workflows/kernel-images.yml'
       - '.github/actions/build-vmtest-ci-image.yml'
     branches: ['main']
@@ -128,4 +130,20 @@ jobs:
         with:
           dockercontext: ./images/kernel-arm64
           image-suffix: kernel-arm64
+          login-password: ${{ secrets.GITHUB_TOKEN }}
+
+  kernel-riscv64-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 'Build Kernel-only riscv64 image'
+        uses: ./.github/actions/build-vmtest-ci-image
+        with:
+          dockercontext: ./images/kernel-riscv64
+          image-suffix: kernel-riscv64
           login-password: ${{ secrets.GITHUB_TOKEN }}
