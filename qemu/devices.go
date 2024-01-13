@@ -417,3 +417,49 @@ func Cleanup(f func() error) Task {
 		return f()
 	}
 }
+
+// ByArch applies only the Fn config function applicable to the VM guest
+// architecture.
+func ByArch(m map[Arch]Fn) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		a := opts.Arch()
+		fn, ok := m[a]
+		if !ok {
+			return nil
+		}
+		return fn(alloc, opts)
+	}
+}
+
+// IfNotArch applies fn only if the VM guest arch is not the given arch.
+func IfNotArch(arch Arch, fn Fn) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		if opts.Arch() == arch {
+			return nil
+		}
+		return fn(alloc, opts)
+	}
+}
+
+// IfArch applies fn only if the VM guest arch is the given arch.
+func IfArch(arch Arch, fn Fn) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		if opts.Arch() == arch {
+			return fn(alloc, opts)
+		}
+		return nil
+	}
+}
+
+// All applies all given configurators in order. If an error occurs, it returns
+// the error early.
+func All(fn ...Fn) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		for _, f := range fn {
+			if err := f(alloc, opts); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}

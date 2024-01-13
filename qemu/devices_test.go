@@ -111,6 +111,71 @@ func TestDevices(t *testing.T) {
 			fns:  []Fn{IDEBlockDevice(filepath.Join(t.TempDir(), "non-exist"))},
 			err:  syscall.ENOENT,
 		},
+		{
+			name: "by-arch-found",
+			arch: ArchAMD64,
+			fns: []Fn{
+				WithQEMUCommand("qemu"),
+				ByArch(map[Arch]Fn{
+					ArchAMD64: ArbitraryArgs("-game"),
+					ArchArm:   ArbitraryArgs("-foobar"),
+				}),
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+				withArg("-game"),
+			},
+		},
+		{
+			name: "by-arch-not-found",
+			arch: ArchAMD64,
+			fns: []Fn{
+				WithQEMUCommand("qemu"),
+				ByArch(map[Arch]Fn{
+					ArchArm64: ArbitraryArgs("-game"),
+					ArchArm:   ArbitraryArgs("-foobar"),
+				}),
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+			},
+		},
+		{
+			name: "all-ifs",
+			arch: ArchAMD64,
+			fns: []Fn{
+				WithQEMUCommand("qemu"),
+				All(
+					IfArch(ArchAMD64, ArbitraryArgs("-game")),
+					IfArch(ArchArm, ArbitraryArgs("-notgame")),
+					IfNotArch(ArchAMD64, ArbitraryArgs("-notfoobar")),
+					IfNotArch(ArchArm, ArbitraryArgs("-foobar")),
+				),
+			},
+			want: []cmdlineEqualOpt{
+				withArgv0("qemu"),
+				withArg("-nographic"),
+				withArg("-game"),
+				withArg("-foobar"),
+			},
+		},
+		{
+			name: "all-error",
+			arch: ArchAMD64,
+			fns: []Fn{
+				WithQEMUCommand("qemu"),
+				All(
+					IfArch(ArchAMD64, ArbitraryArgs("-game")),
+					P9Directory("", "tag"),
+					func(alloc *IDAllocator, opts *Options) error {
+						panic("not run!")
+					},
+				),
+			},
+			err: ErrInvalidDir,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			opts, err := OptionsFor(tt.arch, tt.fns...)
