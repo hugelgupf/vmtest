@@ -65,6 +65,9 @@ const (
 
 	// ArchArm is the arm 32bit architecture.
 	ArchArm Arch = "arm"
+
+	// ArchRiscv64 is the riscv 64bit architecture.
+	ArchRiscv64 Arch = "riscv64"
 )
 
 // SupportedArches are the supported guest architecture values.
@@ -73,6 +76,7 @@ var SupportedArches = []Arch{
 	ArchI386,
 	ArchArm64,
 	ArchArm,
+	ArchRiscv64,
 }
 
 // GuestArch returns the Guest architecture under test. Either VMTEST_ARCH or
