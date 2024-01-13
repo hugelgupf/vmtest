@@ -37,6 +37,17 @@ func TestIDAllocator(t *testing.T) {
 }
 
 func TestDevices(t *testing.T) {
+	resetVars := []string{
+		"VMTEST_QEMU",
+		"VMTEST_QEMU_ARCH",
+		"VMTEST_KERNEL",
+		"VMTEST_INITRAMFS",
+		"VMTEST_TIMEOUT",
+	}
+	for _, key := range resetVars {
+		t.Setenv(key, "")
+	}
+
 	emptyFilePath := filepath.Join(t.TempDir(), "file")
 	if err := os.WriteFile(emptyFilePath, []byte{}, 0o777); err != nil {
 		t.Fatal(err)
