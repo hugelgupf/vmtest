@@ -98,6 +98,18 @@ var defaultConfig = Config{
 			Directories: map[string]string{"qemu": "/zqemu"},
 		},
 	},
+	"riscv64": map[string]EnvVar{
+		"VMTEST_KERNEL": {
+			Container: "ghcr.io/hugelgupf/vmtest/kernel-riscv64:main",
+			Template:  "{{.Image}}",
+			Files:     map[string]string{"Image": "/Image"},
+		},
+		"VMTEST_QEMU": {
+			Container:   "ghcr.io/hugelgupf/vmtest/qemu:main",
+			Template:    "{{.qemu}}/bin/qemu-system-riscv64 -M virt -cpu rv64 -m 1G -L {{.qemu}}/pc-bios -m 1G",
+			Directories: map[string]string{"qemu": "/zqemu"},
+		},
+	},
 }
 
 func archConfig(config Config) EnvConfig {
