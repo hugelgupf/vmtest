@@ -6,10 +6,13 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
 )
 
 func TestStartVM(t *testing.T) {
+	// riscv64 kernel coverage not working
+	vmtest.SkipIfNotArch(t, qemu.ArchAMD64, qemu.ArchArm, qemu.ArchArm64)
 	vmtest.SkipWithoutQEMU(t)
 
 	kcovDir := os.Getenv("VMTEST_KERNEL_COVERAGE_DIR")
