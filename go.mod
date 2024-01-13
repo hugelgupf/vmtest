@@ -5,8 +5,8 @@ go 1.18
 require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/creack/pty v1.1.21
-	github.com/u-root/gobusybox/src v0.0.0-20231224233253-2944a440b6b6
-	github.com/u-root/u-root v0.11.1-0.20230807200058-f87ad7ccb594
+	github.com/u-root/gobusybox/src v0.0.0-20231228173702-b69f654846aa
+	github.com/u-root/u-root v0.12.1-0.20240112163324-bc840e98b936
 	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
 	golang.org/x/sync v0.5.0
@@ -16,7 +16,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/google/goexpect v0.0.0-20210430020637-ab937bf7fd6f // indirect
 	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
