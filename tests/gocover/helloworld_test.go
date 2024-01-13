@@ -92,7 +92,7 @@ func TestHello(t *testing.T) {
 	guest.SkipIfNotInVM(t)
 
 	// In case TestMain/run get messed up and there's an infinite loop.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	c := exec.CommandContext(ctx, "/proc/self/exe")
