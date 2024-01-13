@@ -3,9 +3,6 @@ name: Publish kernel images
 on:
   push:
     paths:
-      - 'images/arm/*'
-      - 'images/arm64/*'
-      - 'images/amd64/*'
       - 'images/kernel-arm/*'
       - 'images/kernel-arm64/*'
       - 'images/kernel-amd64/*'
@@ -16,9 +13,6 @@ on:
     tags: ['v*']
   pull_request:
     paths:
-      - 'images/arm/*'
-      - 'images/arm64/*'
-      - 'images/amd64/*'
       - 'images/kernel-arm/*'
       - 'images/kernel-arm64/*'
       - 'images/kernel-amd64/*'
@@ -36,114 +30,21 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  arm-image:
+  kernel-image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        arch: [ 'amd64', 'arm', 'arm64', 'riscv64' ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: 'Build Arm image'
+      - name: 'Build kernel image'
         uses: ./.github/actions/build-vmtest-ci-image
         with:
-          dockercontext: ./images/arm
-          image-suffix: ci-arm
-          login-password: ${{ secrets.GITHUB_TOKEN }}
-
-  kernel-arm-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: 'Build Kernel-only Arm image'
-        uses: ./.github/actions/build-vmtest-ci-image
-        with:
-          dockercontext: ./images/kernel-arm
-          image-suffix: kernel-arm
-          login-password: ${{ secrets.GITHUB_TOKEN }}
-
-  amd64-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: 'Build AMD64 image'
-        uses: ./.github/actions/build-vmtest-ci-image
-        with:
-          dockercontext: ./images/amd64
-          image-suffix: ci-amd64
-          login-password: ${{ secrets.GITHUB_TOKEN }}
-
-  kernel-amd64-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: 'Build Kernel-only AMD64 image'
-        uses: ./.github/actions/build-vmtest-ci-image
-        with:
-          dockercontext: ./images/kernel-amd64
-          image-suffix: kernel-amd64
-          login-password: ${{ secrets.GITHUB_TOKEN }}
-
-  arm64-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: 'Build Arm64 image'
-        uses: ./.github/actions/build-vmtest-ci-image
-        with:
-          dockercontext: ./images/arm64
-          image-suffix: ci-arm64
-          login-password: ${{ secrets.GITHUB_TOKEN }}
-
-  kernel-arm64-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: 'Build Kernel-only Arm64 image'
-        uses: ./.github/actions/build-vmtest-ci-image
-        with:
-          dockercontext: ./images/kernel-arm64
-          image-suffix: kernel-arm64
-          login-password: ${{ secrets.GITHUB_TOKEN }}
-
-  kernel-riscv64-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: 'Build Kernel-only riscv64 image'
-        uses: ./.github/actions/build-vmtest-ci-image
-        with:
-          dockercontext: ./images/kernel-riscv64
-          image-suffix: kernel-riscv64
+          dockercontext: ./images/kernel-${{ matrix.arch }}
+          image-suffix: kernel-${{ matrix.arch }}
           login-password: ${{ secrets.GITHUB_TOKEN }}
