@@ -258,6 +258,8 @@ type Options struct {
 	// QEMU subprocess exits. When the context is canceled, the QEMU
 	// subprocess is expected to exit as well, and when the QEMU subprocess
 	// exits, the context is canceled.
+	//
+	// Tasks may depend on ExtraFiles or SerialOutput to be closed to exit.
 	Tasks []Task
 
 	// Additional QEMU cmdline arguments.
@@ -369,9 +371,22 @@ func (o *Options) Start(ctx context.Context) (*VM, error) {
 	if err := cmd.Start(); err != nil {
 		// Cancel tasks.
 		cancel()
-		// Wait for tasks to exit. Some day we'll report their errors
-		// with errors.Join.
+
+		// Unblock tasks that may depend on these files.
+		vm.Console.Close()
+		for _, w := range vm.Options.SerialOutput {
+			w.Close()
+		}
+		for _, c := range o.ExtraFiles {
+			c.Close()
+		}
+
+		// Wait for tasks to exit.
 		_ = vm.taskWG.Wait()
+
+		// Close these after tasks have exited to guarantee that tasks
+		// use context cancelation or closing of their inputs to unblock.
+		vm.notifs.closeAll()
 		return nil, err
 	}
 	vm.notifs.vmStarted()
@@ -558,6 +573,13 @@ func (n notifications) vmStarted() {
 func (n notifications) vmExited(err error) {
 	for _, m := range n {
 		m.VMExited <- err
+		close(m.VMExited)
+	}
+}
+
+func (n notifications) closeAll() {
+	for _, m := range n {
+		close(m.VMStarted)
 		close(m.VMExited)
 	}
 }

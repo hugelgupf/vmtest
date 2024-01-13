@@ -225,7 +225,10 @@ func ServeHTTP(s *http.Server, l net.Listener) Fn {
 		})
 		opts.Tasks = append(opts.Tasks, func(ctx context.Context, n *Notifications) error {
 			// Wait for VM exit.
-			<-n.VMExited
+			select {
+			case <-n.VMExited:
+			case <-ctx.Done():
+			}
 			// Stop HTTP server.
 			return s.Close()
 		})

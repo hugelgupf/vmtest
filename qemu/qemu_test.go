@@ -8,6 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -19,7 +23,6 @@ import (
 	"github.com/u-root/u-root/pkg/uroot"
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sys/unix"
 )
 
 type cmdlineEqualOpt func(*cmdlineEqualOption)
@@ -388,27 +391,130 @@ func TestTaskCanceledVMExits(t *testing.T) {
 	}
 }
 
-func TestTaskCanceledIfVMFailsToStart(t *testing.T) {
-	var taskGotCanceled bool
-
+func TestStartFails(t *testing.T) {
 	_, err := Start(ArchAMD64,
-		// Some path that does not exist.
-		WithQEMUCommand(filepath.Join(t.TempDir(), "qemu")),
-		// Make sure that the test does not time out
-		// forever -- context must get canceled.
+		WithQEMUCommand("sleep 2"),
+		clearArgs(),
+		WithAppendKernel("foobar"),
+	)
+	if !errors.Is(err, ErrKernelRequiredForArgs) {
+		t.Fatalf("Start = %v, want %v", err, ErrKernelRequiredForArgs)
+	}
+}
+
+func TestStartFailsTaskCanceled(t *testing.T) {
+	var taskGotCanceled bool
+	_, err := Start(ArchAMD64,
+		WithQEMUCommand("does-not-exist"),
 		WithTask(func(ctx context.Context, n *Notifications) error {
 			<-ctx.Done()
 			taskGotCanceled = true
 			return nil
 		}),
 	)
-
-	if !errors.Is(err, unix.ENOENT) {
+	if !errors.Is(err, exec.ErrNotFound) {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
-
 	if !taskGotCanceled {
 		t.Error("Error: Task did not get canceled")
+	}
+}
+
+func TestStartFailsWaitVMStartedCanceled(t *testing.T) {
+	var taskRan bool
+	_, err := Start(ArchAMD64,
+		WithQEMUCommand("does-not-exist"),
+		// WaitVMStarted should get canceled before it starts.
+		WithTask(WaitVMStarted(func(ctx context.Context, n *Notifications) error {
+			taskRan = true
+			return nil
+		})),
+	)
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	if taskRan {
+		t.Error("Error: task should not have run")
+	}
+}
+
+func TestStartFailsCleanup(t *testing.T) {
+	var taskRan bool
+	_, err := Start(ArchAMD64,
+		WithQEMUCommand("does-not-exist"),
+		WithTask(Cleanup(func() error {
+			taskRan = true
+			return nil
+		})),
+	)
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	if !taskRan {
+		t.Error("Error: cleanup task did not run")
+	}
+}
+
+func TestStartFailsUnblockSerial(t *testing.T) {
+	r, w := io.Pipe()
+	var ioErr error
+	_, err := Start(ArchAMD64,
+		WithQEMUCommand("does-not-exist"),
+		WithSerialOutput(w),
+		WithTask(func(ctx context.Context, n *Notifications) error {
+			_, ioErr = io.ReadAll(r)
+			return nil
+		}),
+	)
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	if !errors.Is(ioErr, io.EOF) && ioErr != nil {
+		t.Error("Error: task should have been unblocked by closing of serial output")
+	}
+}
+
+func TestStartFailsExtraFile(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var ioErr error
+	_, err = Start(ArchAMD64,
+		WithQEMUCommand("does-not-exist"),
+		func(alloc *IDAllocator, opts *Options) error {
+			opts.AddFile(w)
+			return nil
+		},
+		WithTask(func(ctx context.Context, n *Notifications) error {
+			_, ioErr = io.ReadAll(r)
+			return nil
+		}),
+	)
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	if !errors.Is(ioErr, io.EOF) && ioErr != nil {
+		t.Error("Error: task should have been unblocked by closing of serial output")
+	}
+}
+
+func TestStartFailsServeHTTP(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &http.Server{}
+
+	// Test that we do not block forever. Both tasks added by ServeHTTP
+	// should unblock.
+	_, err = Start(ArchAMD64,
+		WithQEMUCommand("does-not-exist"),
+		ServeHTTP(s, ln),
+	)
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("Failed to start VM: %v", err)
 	}
 }
 
@@ -460,12 +566,5 @@ func TestWaitTwice(t *testing.T) {
 
 	if err := vm.Wait(); !errors.Is(err, errFoo) {
 		t.Fatalf("Wait = %v, want %v", err, errFoo)
-	}
-}
-
-func TestStartFails(t *testing.T) {
-	_, err := Start(ArchAMD64, WithQEMUCommand("sleep 2"), clearArgs(), WithAppendKernel("foobar"))
-	if !errors.Is(err, ErrKernelRequiredForArgs) {
-		t.Fatalf("Start = %v, want %v", err, ErrKernelRequiredForArgs)
 	}
 }
