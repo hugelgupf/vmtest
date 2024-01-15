@@ -229,7 +229,7 @@ type Options struct {
 	// If empty, VMTEST_QEMU_ARCH env var will be used.
 	arch Arch
 
-	// QEMUCommand is QEMU binary to invoke and some additonal args.
+	// QEMUCommand is QEMU binary to invoke and some additional args.
 	//
 	// If empty, the VMTEST_QEMU env var will be used.
 	QEMUCommand string
