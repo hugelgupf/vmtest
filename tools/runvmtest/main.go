@@ -27,10 +27,12 @@ import (
 var (
 	keepArtifacts = flag.Bool("keep-artifacts", false, "Keep artifacts directory available after exiting (alias -k)")
 	configFile    = flag.String("config", "", "Path to YAML config file")
+	artifactsDir  = flag.String("artifacts-dir", "", "Directory to store artifacts in, will be created if not exist (default: temp dir)")
 )
 
 func init() {
 	flag.BoolVar(keepArtifacts, "k", false, "Keep artifacts directory available after exiting")
+	flag.StringVar(artifactsDir, "d", "", "Directory to store artifacts in, will be created if not exist (default: temp dir)")
 }
 
 func main() {
@@ -209,8 +211,13 @@ func runNatively(ctx context.Context, client *dagger.Client, config EnvConfig, a
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tmpDir, err := os.MkdirTemp(".", "ci-testing")
-	if err != nil {
+	var err error
+	if *artifactsDir != "" {
+		tmpDir = *artifactsDir
+		if err := os.MkdirAll(tmpDir, 0o700); err != nil {
+			return fmt.Errorf("could not create artifact directory: %v", err)
+		}
+	} else if tmpDir, err = os.MkdirTemp(".", "runvmtest-artifacts"); err != nil {
 		return fmt.Errorf("unable to create tmp dir: %w", err)
 	}
 	if !*keepArtifacts {
@@ -251,7 +258,7 @@ func runNatively(ctx context.Context, client *dagger.Client, config EnvConfig, a
 	}
 	artifacts := base.Directory("/")
 
-	if ok, err := artifacts.Export(ctx, tmpDir); !ok || err != nil {
+	if ok, err := artifacts.Export(ctx, tmp); !ok || err != nil {
 		return fmt.Errorf("failed artifact export: %w", err)
 	}
 
