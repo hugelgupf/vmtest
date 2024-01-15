@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +20,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/internal/json2test"
-	"github.com/hugelgupf/vmtest/internal/testevent"
+	slogmulti "github.com/samber/slog-multi"
 	"golang.org/x/sys/unix"
 )
 
@@ -72,33 +73,39 @@ func AppendFile(srcFile, targetFile string) error {
 }
 
 // runTest mounts a vfat or 9pfs volume and runs the tests within.
-func runTest() error {
+func runTest() {
 	flag.Parse()
 
 	// If these fail, the host will be missing the "Done" event from
 	// testEvents, or possibly even the errors.json file and fail.
 	mp, err := guest.Mount9PDir("/gotestdata", "gotests")
 	if err != nil {
-		return err
+		log.Printf("Could not mount gotests data: %v", err)
+		return
 	}
 	defer func() { _ = mp.Unmount(0) }()
 
-	testEvents, err := guest.EventChannel[testevent.ErrorEvent]("/gotestdata/errors.json")
+	testEvents, err := guest.EventChannel[any]("/gotestdata/errors.json")
 	if err != nil {
-		return err
+		log.Printf("Could not open event channel: %v", err)
+		return
 	}
-	defer testEvents.Close()
+	defer func() {
+		if err := testEvents.Close(); err != nil {
+			log.Printf("Event channel closing failed: %v", err)
+		}
+	}()
 
-	if err := run(testEvents); err != nil {
-		_ = testEvents.Emit(testevent.ErrorEvent{
-			Error: fmt.Sprintf("running tests failed: %v", err),
-		})
-		return err
+	logger := slog.New(slogmulti.Fanout(
+		slog.Default().Handler(),
+		slog.NewJSONHandler(testEvents, nil),
+	))
+	if err := run(logger); err != nil {
+		logger.Error("running tests failed", "err", err)
 	}
-	return nil
 }
 
-func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
+func run(logger *slog.Logger) error {
 	cleanup, err := guest.MountSharedDir()
 	if err != nil {
 		return err
@@ -128,9 +135,11 @@ func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
 		ctx, cancel := context.WithTimeout(context.Background(), *individualTestTimeout+500*time.Millisecond)
 		defer cancel()
 
+		plog := logger.With("binary", path)
+
 		r, w, err := os.Pipe()
 		if err != nil {
-			log.Printf("Failed to get pipe: %v", err)
+			plog.Error("failed to get pipe", "err", err)
 			return
 		}
 
@@ -154,11 +163,7 @@ func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
 		// relative directory.
 		cmd.Dir = filepath.Dir(path)
 		if err := cmd.Start(); err != nil {
-			_ = testEvents.Emit(testevent.ErrorEvent{
-				Binary: path,
-				Error:  fmt.Sprintf("failed to start: %v", err),
-			})
-			log.Printf("Failed to start %q: %v", path, err)
+			plog.Error("failed to start", "err", err)
 			return
 		}
 
@@ -169,41 +174,25 @@ func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
 		j.Stdin = r
 		j.Stdout, cmd.Stderr = goTestEvents, os.Stderr
 		if err := j.Start(); err != nil {
-			_ = testEvents.Emit(testevent.ErrorEvent{
-				Binary: path,
-				Error:  fmt.Sprintf("failed to start test2json: %v", err),
-			})
-			log.Printf("Failed to start test2json: %v", err)
+			plog.Error("failed to start test2json", "err", err)
 			return
 		}
 
 		if err := cmd.Wait(); err != nil {
-			_ = testEvents.Emit(testevent.ErrorEvent{
-				Binary: path,
-				Error:  fmt.Sprintf("test exited with non-zero status: %v", err),
-			})
-			log.Printf("Error: test %q exited with non-zero status: %v", pkgName, err)
+			plog.Error("test exited with non-zero status", "err", err)
 		}
 
 		// Close the pipe so test2json will quit.
 		if err := w.Close(); err != nil {
-			log.Printf("Failed to close pipe: %v", err)
+			plog.Error("failed to close pipe", "err", err)
 		}
 		if err := j.Wait(); err != nil {
-			_ = testEvents.Emit(testevent.ErrorEvent{
-				Binary: path,
-				Error:  fmt.Sprintf("test2json exited with non-zero status: %v", err),
-			})
-			log.Printf("Failed to stop test2json: %v", err)
+			plog.Error("test2json exited with non-zero status", "err", err)
 		}
 
 		if len(*coverProfile) > 0 {
 			if err := AppendFile(coverFile, *coverProfile); err != nil {
-				_ = testEvents.Emit(testevent.ErrorEvent{
-					Binary: path,
-					Error:  fmt.Sprintf("could not append to coverage file: %v", err),
-				})
-				log.Printf("Could not append to cover file: %v", err)
+				plog.Error("could not append to coverage file", "err", err)
 			}
 		}
 	})
@@ -212,9 +201,7 @@ func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
 func main() {
 	flag.Parse()
 
-	if err := runTest(); err != nil {
-		log.Printf("Tests failed: %v", err)
-	}
+	runTest()
 
 	if err := unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF); err != nil {
 		log.Fatalf("Failed to reboot: %v", err)

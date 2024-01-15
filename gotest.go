@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/internal/json2test"
-	"github.com/hugelgupf/vmtest/internal/testevent"
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/qslog"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -224,12 +224,12 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 		}
 	}
 
-	errors, err := qemu.ReadEventFile[testevent.ErrorEvent](filepath.Join(sharedDir, "errors.json"))
+	errors, err := qslog.ReadEventFile(filepath.Join(sharedDir, "errors.json"))
 	if err != nil {
 		t.Errorf("Reading test events: %v", err)
 	}
-	for _, e := range errors {
-		t.Errorf("Binary %s experienced error: %s", e.Binary, e.Error)
+	for _, r := range errors {
+		t.Errorf("Test failed: %s", r)
 	}
 
 	tc := json2test.NewTestCollector()

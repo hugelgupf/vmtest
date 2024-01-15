@@ -7,6 +7,7 @@ toolchain go1.21.0
 require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/creack/pty v1.1.21
+	github.com/samber/slog-multi v1.0.2
 	github.com/u-root/gobusybox/src v0.0.0-20231228173702-b69f654846aa
 	github.com/u-root/u-root v0.12.1-0.20240114161452-ab3534910ced
 	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63
@@ -29,6 +30,7 @@ require (
 	github.com/mdlayher/packet v1.1.2 // indirect
 	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
+	github.com/samber/lo v1.38.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
