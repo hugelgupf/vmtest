@@ -14,8 +14,8 @@ var n = flag.Int("n", 1, "How many times to repeat Hello world")
 func main() {
 	flag.Parse()
 
-	for i := 0; i < n; i++ {
-		fmt.Println("Hello world")
+	for i := 0; i < *n; i++ {
+		fmt.Println("Hello world", i)
 	}
 
 	if err := unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF); err != nil {

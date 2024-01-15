@@ -528,6 +528,14 @@ func (v *VM) Waited() bool {
 func (v *VM) Wait() error {
 	v.waitCalled.Store(true)
 
+	// If there is a lot of output after the last user's Expect call (or
+	// there are no Expect calls at all), the pty buffer may fill up and
+	// the guest is blocked from writing anything and from continuing
+	// execution.
+	//
+	// Therefore, drain! EOF should happen when the guest exits.
+	_, _ = v.Console.ExpectEOF()
+
 	<-v.wait
 
 	v.waitMu.Lock()

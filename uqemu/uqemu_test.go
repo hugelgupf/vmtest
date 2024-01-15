@@ -450,3 +450,33 @@ func TestInvalidInitramfs(t *testing.T) {
 		})
 	}
 }
+
+func TestOutputFillsConsoleBuffers(t *testing.T) {
+	// 4000 repeats of Hello world fill the buffer of the pty used by the
+	// Expect library. Make sure this does not cause hangs.
+	initramfs := uroot.Opts{
+		InitCmd:   "init",
+		UinitCmd:  "helloworld",
+		UinitArgs: []string{"-n", "4000"},
+		TempDir:   t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+		),
+	}
+	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
+		WithUrootInitramfsT(t, initramfs),
+		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start VM: %v", err)
+	}
+	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+
+	// No calls to Expect means nothing is draining the Console pty buffer.
+
+	if err := vm.Wait(); err != nil {
+		t.Fatalf("Error waiting for VM to exit: %v", err)
+	}
+}
