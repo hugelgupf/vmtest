@@ -1,5 +1,4 @@
-// Command httpdownload configures networking with DHCP and downloads one web
-// page.
+// Command catfile reads a file.
 package main
 
 import (

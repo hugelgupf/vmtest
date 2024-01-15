@@ -21,10 +21,10 @@ func TestStart(t *testing.T) {
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/u-root/u-root/cmds/core/elvish",
-			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+			"github.com/hugelgupf/vmtest/tests/cmds/catfile",
 		),
 		InitCmd:   "init",
-		UinitCmd:  "helloworld",
+		UinitCmd:  "catfile",
 		UinitArgs: []string{"-file", "/testdata/hello"},
 		TempDir:   t.TempDir(),
 	}
