@@ -276,13 +276,13 @@ func TestStartVM(t *testing.T) {
 	uopts := uroot.Opts{
 		Env:        env,
 		InitCmd:    "init",
-		UinitCmd:   "qemutest1",
+		UinitCmd:   "helloworld",
 		OutputFile: initrdWriter,
 		TempDir:    tmp,
 	}
 	uopts.AddBusyBoxCommands(
 		"github.com/u-root/u-root/cmds/core/init",
-		"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
+		"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
 	)
 	if err := uroot.CreateInitramfs(logger, uopts); err != nil {
 		t.Fatalf("error creating initramfs: %v", err)
@@ -298,7 +298,7 @@ func TestStartVM(t *testing.T) {
 	}
 	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
 
-	if _, err := vm.Console.ExpectString("I AM HERE"); err != nil {
+	if _, err := vm.Console.ExpectString("Hello world"); err != nil {
 		t.Errorf("Error expecting I AM HERE: %v", err)
 	}
 

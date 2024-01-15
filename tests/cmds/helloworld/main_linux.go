@@ -1,4 +1,4 @@
-// Package qemutest1 is just a test program for qemu/ tests.
+// Package helloworld prints hello world and shuts down.
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("I AM HERE")
+	fmt.Println("Hello world")
 
 	if err := unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF); err != nil {
 		log.Fatalf("Failed to shut down: %v", err)

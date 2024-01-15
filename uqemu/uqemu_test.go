@@ -73,11 +73,11 @@ func TestStartVM(t *testing.T) {
 
 	initramfs := uroot.Opts{
 		InitCmd:  "init",
-		UinitCmd: "qemutest1",
+		UinitCmd: "helloworld",
 		TempDir:  tmp,
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
+			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
 		),
 	}
 	vm, err := qemu.Start(qemu.ArchUseEnvv, WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
@@ -86,8 +86,8 @@ func TestStartVM(t *testing.T) {
 	}
 	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
 
-	if _, err := vm.Console.ExpectString("I AM HERE"); err != nil {
-		t.Errorf("Error expecting I AM HERE: %v", err)
+	if _, err := vm.Console.ExpectString("Hello world"); err != nil {
+		t.Errorf("Error expecting Hello world: %v", err)
 	}
 
 	if err := vm.Wait(); err != nil {
@@ -104,16 +104,16 @@ func TestTask(t *testing.T) {
 	r, w := io.Pipe()
 
 	var taskGotCanceled bool
-	var taskSawIAmHere bool
+	var taskSawHelloWorld bool
 	var vmExitErr error
 
 	initramfs := uroot.Opts{
 		InitCmd:  "init",
-		UinitCmd: "qemutest1",
+		UinitCmd: "helloworld",
 		TempDir:  tmp,
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
+			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
 		),
 	}
 	vm, err := qemu.Start(
@@ -125,8 +125,8 @@ func TestTask(t *testing.T) {
 			s := bufio.NewScanner(r)
 			for s.Scan() {
 				line := string(replaceCtl(s.Bytes()))
-				if strings.Contains(line, "I AM HERE") {
-					taskSawIAmHere = true
+				if strings.Contains(line, "Hello world") {
+					taskSawHelloWorld = true
 				}
 				t.Logf("vm: %s", line)
 			}
@@ -159,8 +159,8 @@ func TestTask(t *testing.T) {
 	}
 	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
 
-	if _, err := vm.Console.ExpectString("I AM HERE"); err != nil {
-		t.Errorf("Error expecting I AM HERE: %v", err)
+	if _, err := vm.Console.ExpectString("Hello world"); err != nil {
+		t.Errorf("Error expecting Hello world: %v", err)
 	}
 
 	werr := vm.Wait()
@@ -174,8 +174,8 @@ func TestTask(t *testing.T) {
 	if !taskGotCanceled {
 		t.Error("Error: Task did not get canceled")
 	}
-	if !taskSawIAmHere {
-		t.Error("Error: Serial console task didn't see I AM HERE")
+	if !taskSawHelloWorld {
+		t.Error("Error: Serial console task didn't see Hello world")
 	}
 }
 
