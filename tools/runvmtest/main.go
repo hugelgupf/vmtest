@@ -25,9 +25,13 @@ import (
 )
 
 var (
-	keepArtifacts = flag.Bool("keep-artifacts", false, "Keep artifacts directory available for further local tests")
+	keepArtifacts = flag.Bool("keep-artifacts", false, "Keep artifacts directory available after exiting (alias -k)")
 	configFile    = flag.String("config", "", "Path to YAML config file")
 )
+
+func init() {
+	flag.BoolVar(keepArtifacts, "k", false, "Keep artifacts directory available after exiting")
+}
 
 func main() {
 	if err := run(); err != nil {
