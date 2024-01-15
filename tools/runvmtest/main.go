@@ -142,8 +142,8 @@ func findConfigFile(name string) (string, error) {
 func run() error {
 	flag.Parse()
 
-	if flag.NArg() < 2 {
-		return fmt.Errorf("too few arguments: usage: `%s -- ./test-to-run`", os.Args[0])
+	if flag.NArg() < 1 {
+		return fmt.Errorf("too few arguments: usage: `%s -- ./cmd-to-run`", os.Args[0])
 	}
 
 	var configPath string
