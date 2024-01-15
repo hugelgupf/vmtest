@@ -168,9 +168,6 @@ func p9Directory(dir string, boot bool, tag string) Fn {
 				"rootfstype=9p",
 				"rootflags=trans=virtio,version=9p2000.L",
 			)
-		} else {
-			// seen as an env var by the init process
-			opts.AppendKernel("UROOT_USE_9P=1")
 		}
 		return nil
 	}
