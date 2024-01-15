@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [ '1.20' ]
+        go-version: [ '1.21.x' ]
 
     steps:
       - uses: actions/checkout@v4
@@ -75,12 +75,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [ '1.20', '1.21.x' ]
-        arch: [ 'amd64', 'arm', 'arm64', 'riscv64' ]
-        exclude:
-          # TODO: QEMU tests seem to time out.
-          - go-version: 1.21.x
-            arch: arm
+        go-version: [ '1.21.x' ]
+        vmarch: [ 'amd64', 'arm64', 'riscv64' ]
+        goarm: ['']
+        include:
+          # QEMU arm -M virt seems to support only v5. GOARM default as of 1.21
+          # is v7.
+          - go-version: '1.21.x'
+            vmarch: 'arm'
+            goarm: '5'
+
+    env:
+      VMTEST_ARCH: ${{ matrix.vmarch }}
+      GOARM: ${{ matrix.goarm }}
 
     steps:
       - uses: actions/checkout@v4
@@ -94,13 +101,13 @@ jobs:
 
       - name: Test
         run: |
-          VMTEST_ARCH=${{ matrix.arch }} ./tools/runvmtest/runvmtest -- \
+          ./tools/runvmtest/runvmtest -- \
             go test -v -coverprofile=coverage.txt -covermode=atomic -coverpkg=./... ./...
 
       - uses: codecov/codecov-action@v4-beta
         env:
           CODECOV_TOKEN: '6793138f-7113-4561-aa24-08bdd9111678'
         with:
-          flags: ${{ matrix.arch }}-${{ matrix.go-version }}
+          flags: ${{ matrix.vmarch }}-${{ matrix.go-version }}
           fail_ci_if_error: true
           verbose: true
