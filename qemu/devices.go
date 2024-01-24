@@ -285,7 +285,7 @@ func RelativeTS(printer LinePrinter) LinePrinter {
 // PrintLine is a LinePrinter that prints to a standard "formatter" like testing.TB.Logf or fmt.Printf.
 func PrintLine(printer func(fmt string, arg ...any)) LinePrinter {
 	return func(line string) {
-		printer(line)
+		printer("%s", line)
 	}
 }
 
