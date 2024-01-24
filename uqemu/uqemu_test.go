@@ -195,7 +195,7 @@ func TestEventChannel(t *testing.T) {
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
 		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.EventChannel[event.Event]("test", events),
 	)
 	if err != nil {
@@ -242,7 +242,7 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
 		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.EventChannel[event.Event]("test", events),
 	)
 	if err != nil {
@@ -283,7 +283,7 @@ func TestKernelPanic(t *testing.T) {
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
 		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.HaltOnKernelPanic(),
 	)
 	if err != nil {
@@ -332,7 +332,7 @@ func TestHTTPTask(t *testing.T) {
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
 		WithUrootInitramfsT(t, initramfs),
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.VirtioRandom(), // dhclient needs to generate a random number.
 		qemu.ServeHTTP(s, ln),
 		network.IPv4HostNetwork(&net.IPNet{
@@ -368,7 +368,7 @@ func TestEventChannelCallback(t *testing.T) {
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
 		WithUrootInitramfsT(t, initramfs),
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.EventChannelCallback[event.Event]("test", func(e event.Event) {
 			events = append(events, e)
 		}),
@@ -441,7 +441,7 @@ func TestInvalidInitramfs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := qemu.Start(qemu.ArchUseEnvv,
 				WithUrootInitramfs(logger, tt.initramfs, tt.initrdPath),
-				qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+				qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 			)
 			if err == nil {
 				t.Fatalf("VM expected error, got nil")
@@ -467,7 +467,7 @@ func TestOutputFillsConsoleBuffers(t *testing.T) {
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
 		WithUrootInitramfsT(t, initramfs),
-		qemu.LogSerialByLine(qemu.PrintLineWithPrefix("vm", t.Logf)),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
