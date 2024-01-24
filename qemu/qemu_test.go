@@ -291,7 +291,7 @@ func TestStartVM(t *testing.T) {
 	vm, err := Start(
 		GuestArch(),
 		WithInitramfs(initrdPath),
-		LogSerialByLine(PrintLineWithPrefix("vm", t.Logf)),
+		LogSerialByLine(TS(time.TimeOnly, RelativeTS(Prefix("vm", PrintLine(t.Logf))))),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
