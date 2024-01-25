@@ -7,10 +7,12 @@
 package qnetwork
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 
 	"github.com/hugelgupf/vmtest/qemu"
@@ -75,22 +77,23 @@ func WithMAC(mac net.HardwareAddr) Opt {
 // unix domain socket.
 type InterVM struct {
 	socket string
+	err    error
 
 	// numVMs must be atomically accessed so VMs can be started in parallel
 	// in goroutines.
 	numVMs uint32
+
+	wg sync.WaitGroup
 }
 
 // NewInterVM creates a new QEMU network between QEMU VMs.
 //
 // The network is closed from the world and only between the QEMU VMs.
 func NewInterVM() *InterVM {
+	// Avoid returning an error here if unnecessary.
 	dir, err := os.MkdirTemp("", "intervm-")
-	if err != nil {
-		panic(err)
-	}
-
 	return &InterVM{
+		err:    err,
 		socket: filepath.Join(dir, "intervm.socket"),
 	}
 }
@@ -104,7 +107,11 @@ func (n *InterVM) NewVM(nopts ...Opt) qemu.Fn {
 	newNum := atomic.AddUint32(&n.numVMs, 1)
 	num := newNum - 1
 
+	n.wg.Add(1)
 	return func(alloc *qemu.IDAllocator, qopts *qemu.Options) error {
+		if n.err != nil {
+			return n.err
+		}
 		devID := alloc.ID("vm")
 
 		opts := Options{
@@ -126,7 +133,20 @@ func (n *InterVM) NewVM(nopts ...Opt) qemu.Fn {
 			args = append(args, "-netdev", fmt.Sprintf("stream,id=%s,server=false,addr.type=unix,addr.path=%s", devID, n.socket))
 		} else {
 			args = append(args, "-netdev", fmt.Sprintf("stream,id=%s,server=true,addr.type=unix,addr.path=%s", devID, n.socket))
+
+			// When the server VM exits, wait until all clients
+			// close, then delete the socket file and directory.
+			qopts.Tasks = append(qopts.Tasks, func(ctx context.Context, notif *qemu.Notifications) error {
+				n.wg.Wait()
+				return os.RemoveAll(filepath.Dir(n.socket))
+			})
 		}
+
+		// When each VM exits, call Done.
+		qopts.Tasks = append(qopts.Tasks, qemu.Cleanup(func() error {
+			n.wg.Done()
+			return nil
+		}))
 		qopts.AppendQEMU(args...)
 		return nil
 	}
