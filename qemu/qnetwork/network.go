@@ -32,6 +32,8 @@ const (
 )
 
 // DeviceOptions are network device options.
+//
+// These are options for the `-device <nic>,...` command-line arg.
 type DeviceOptions struct {
 	// NIC is the NIC device that QEMU emulates.
 	NIC NIC
@@ -40,36 +42,43 @@ type DeviceOptions struct {
 	MAC net.HardwareAddr
 }
 
+// SetNIC sets the NIC.
 func (d *DeviceOptions) SetNIC(nic NIC) {
 	d.NIC = nic
 }
 
+// SetMAC sets the device's MAC.
 func (d *DeviceOptions) SetMAC(mac net.HardwareAddr) {
 	d.MAC = mac
 }
 
+// DeviceOptioner is an interface for setting DeviceOptions members.
+//
+// It exists so DeviceOptions can be extensible through generics, but the
+// WithNIC/WithMAC/WithPCAP functions can be the same across all Options
+// structs.
 type DeviceOptioner interface {
 	SetNIC(NIC)
 	SetMAC(net.HardwareAddr)
 }
 
-// Opt returns additional QEMU command-line parameters based on the net
-// device ID.
-type Opt[DO DeviceOptioner] func(netdev string, id *qemu.IDAllocator, opts DO) []string
+// Opt is a configurer useed with either *DeviceOptions or *UserOptions.
+type Opt[DO DeviceOptioner] func(netdev string, id *qemu.IDAllocator, qopts *qemu.Options, opts DO) error
 
 // WithPCAP captures network traffic and saves it to outputFile.
 func WithPCAP[DO DeviceOptioner](outputFile string) Opt[DO] {
-	return func(netdev string, id *qemu.IDAllocator, opts DO) []string {
-		return []string{
+	return func(netdev string, id *qemu.IDAllocator, qopts *qemu.Options, opts DO) error {
+		qopts.AppendQEMU(
 			"-object",
 			fmt.Sprintf("filter-dump,id=%s,netdev=%s,file=%s", id.ID("filter"), netdev, outputFile),
-		}
+		)
+		return nil
 	}
 }
 
 // WithNIC changes the default NIC device QEMU emulates from e1000 to the given value.
 func WithNIC[DO DeviceOptioner](nic NIC) Opt[DO] {
-	return func(netdev string, id *qemu.IDAllocator, opts DO) []string {
+	return func(netdev string, id *qemu.IDAllocator, qopts *qemu.Options, opts DO) error {
 		opts.SetNIC(nic)
 		return nil
 	}
@@ -77,7 +86,7 @@ func WithNIC[DO DeviceOptioner](nic NIC) Opt[DO] {
 
 // WithMAC assigns a MAC address to the guest interface.
 func WithMAC[DO DeviceOptioner](mac net.HardwareAddr) Opt[DO] {
-	return func(netdev string, id *qemu.IDAllocator, opts DO) []string {
+	return func(netdev string, id *qemu.IDAllocator, qops *qemu.Options, opts DO) error {
 		if mac != nil {
 			opts.SetMAC(mac)
 		}
@@ -137,11 +146,12 @@ func (n *InterVM) NewVM(nopts ...Opt[*DeviceOptions]) qemu.Fn {
 			// This is from the range of locally administered address ranges.
 			MAC: net.HardwareAddr{0xe, 0, 0, 0, 0, byte(num)},
 		}
-		var args []string
 		for _, opt := range nopts {
-			args = append(args, opt(devID, alloc, &opts)...)
+			if err := opt(devID, alloc, qopts, &opts); err != nil {
+				return err
+			}
 		}
-		args = append(args, "-device", fmt.Sprintf("%s,netdev=%s,mac=%s", opts.NIC, devID, opts.MAC))
+		args := []string{"-device", fmt.Sprintf("%s,netdev=%s,mac=%s", opts.NIC, devID, opts.MAC)}
 
 		if num != 0 {
 			args = append(args, "-netdev", fmt.Sprintf("stream,id=%s,server=false,addr.type=unix,addr.path=%s", devID, n.socket))
@@ -176,7 +186,7 @@ type UserOptions struct {
 // WithUserArg adds more comma-separated args to a `-netdev user,arg0,arg1,...`
 // invocation.
 func WithUserArg(arg ...string) Opt[*UserOptions] {
-	return func(netdev string, id *qemu.IDAllocator, opts *UserOptions) []string {
+	return func(netdev string, id *qemu.IDAllocator, qopts *qemu.Options, opts *UserOptions) error {
 		opts.Args = append(opts.Args, arg...)
 		return nil
 	}
@@ -211,19 +221,20 @@ func IPv4HostNetwork(cidr string, nopts ...Opt[*UserOptions]) qemu.Fn {
 			},
 		}
 
-		var args []string
 		for _, opt := range nopts {
-			args = append(args, opt(netdevID, alloc, &opts)...)
+			if err := opt(netdevID, alloc, qopts, &opts); err != nil {
+				return err
+			}
 		}
+
 		var extraUserArgs string
 		if len(opts.Args) > 0 {
 			extraUserArgs = "," + strings.Join(opts.Args, ",")
 		}
-		args = append(args,
+		qopts.AppendQEMU(
 			"-device", fmt.Sprintf("%s,netdev=%s,mac=%s", opts.NIC, netdevID, opts.MAC),
 			"-netdev", fmt.Sprintf("user,id=%s,net=%s,dhcpstart=%s,ipv6=off%s", netdevID, ipnet, nthIP(ipnet, 8), extraUserArgs),
 		)
-		qopts.AppendQEMU(args...)
 		return nil
 	}
 }
