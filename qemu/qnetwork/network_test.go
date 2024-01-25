@@ -311,3 +311,13 @@ shutdown
 		t.Fatalf("PCAP file is empty")
 	}
 }
+
+func TestIPv4CIDRFail(t *testing.T) {
+	if _, err := qemu.Start(qemu.ArchUseEnvv, IPv4HostNetwork("foobar")); err == nil {
+		t.Fatalf("Expected error parsing CIDR, got nil")
+	}
+
+	if _, err := qemu.Start(qemu.ArchUseEnvv, IPv4HostNetwork("fe80::/128")); err == nil {
+		t.Fatalf("Expected error putting IPv6 address, got nil")
+	}
+}
