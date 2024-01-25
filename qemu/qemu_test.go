@@ -81,9 +81,11 @@ func isCmdlineEqual(got []string, opts ...cmdlineEqualOpt) error {
 
 func TestCmdline(t *testing.T) {
 	resetVars := []string{
+		"VMTEST_ARCH",
 		"VMTEST_QEMU",
-		"VMTEST_QEMU_ARCH",
+		"VMTEST_QEMU_APPEND",
 		"VMTEST_KERNEL",
+		"VMTEST_KERNEL_APPEND",
 		"VMTEST_INITRAMFS",
 		"VMTEST_TIMEOUT",
 	}
@@ -160,19 +162,25 @@ func TestCmdline(t *testing.T) {
 				WithKernel("./foobar"),
 				WithInitramfs("./initrd"),
 				WithAppendKernel("printk=ttyS0"),
+				ArbitraryArgs("-device", "virtio-rng-pci"),
 			},
 			envv: map[string]string{
-				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
-				"VMTEST_QEMU_ARCH": "i386",
-				"VMTEST_KERNEL":    "./baz",
-				"VMTEST_INITRAMFS": "./init.cpio",
+				"VMTEST_QEMU":          "qemu-system-x86_64 -enable-kvm -m 1G",
+				"VMTEST_QEMU_APPEND":   "-M q35",
+				"VMTEST_ARCH":          "i386",
+				"VMTEST_KERNEL":        "./baz",
+				"VMTEST_KERNEL_APPEND": "earlyprintk=ttyS0",
+				"VMTEST_INITRAMFS":     "./init.cpio",
 			},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu"),
-				withArg("-nographic"),
+				// VMTEST_QEMU_APPEND is additive.
+				withArg("-nographic", "-M", "q35"),
 				withArg("-kernel", "./foobar"),
 				withArg("-initrd", "./initrd"),
-				withArg("-append", "printk=ttyS0"),
+				// VMTEST_KERNEL_APPEND is additive.
+				withArg("-append", "earlyprintk=ttyS0 printk=ttyS0"),
+				withArg("-device", "virtio-rng-pci"),
 			},
 		},
 		{
@@ -200,17 +208,20 @@ func TestCmdline(t *testing.T) {
 			name: "env-config",
 			arch: ArchUseEnvv,
 			envv: map[string]string{
-				"VMTEST_QEMU":      "qemu-system-x86_64 -enable-kvm -m 1G",
-				"VMTEST_QEMU_ARCH": "x86_64",
-				"VMTEST_KERNEL":    "./foobar",
-				"VMTEST_INITRAMFS": "./init.cpio",
+				"VMTEST_QEMU":          "qemu-system-x86_64 -enable-kvm -m 1G",
+				"VMTEST_QEMU_APPEND":   "-M q35",
+				"VMTEST_ARCH":          "amd64",
+				"VMTEST_KERNEL":        "./foobar",
+				"VMTEST_KERNEL_APPEND": "earlyprintk=ttyS0",
+				"VMTEST_INITRAMFS":     "./init.cpio",
 			},
 			want: []cmdlineEqualOpt{
 				withArgv0("qemu-system-x86_64"),
-				withArg("-nographic"),
+				withArg("-nographic", "-M", "q35"),
 				withArg("-enable-kvm", "-m", "1G"),
 				withArg("-initrd", "./init.cpio"),
 				withArg("-kernel", "./foobar"),
+				withArg("-append", "earlyprintk=ttyS0"),
 			},
 		},
 		{
