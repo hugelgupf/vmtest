@@ -335,10 +335,7 @@ func TestHTTPTask(t *testing.T) {
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.VirtioRandom(), // dhclient needs to generate a random number.
 		qemu.ServeHTTP(s, ln),
-		qnetwork.IPv4HostNetwork(&net.IPNet{
-			IP:   net.IP{192, 168, 0, 0},
-			Mask: net.CIDRMask(24, 32),
-		}),
+		qnetwork.IPv4HostNetwork("192.168.0.0/24"),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
