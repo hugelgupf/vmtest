@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/qemu/network"
+	"github.com/hugelgupf/vmtest/qemu/qnetwork"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -335,7 +335,7 @@ func TestHTTPTask(t *testing.T) {
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.VirtioRandom(), // dhclient needs to generate a random number.
 		qemu.ServeHTTP(s, ln),
-		network.IPv4HostNetwork(&net.IPNet{
+		qnetwork.IPv4HostNetwork(&net.IPNet{
 			IP:   net.IP{192, 168, 0, 0},
 			Mask: net.CIDRMask(24, 32),
 		}),
