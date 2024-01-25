@@ -43,12 +43,12 @@ type DeviceOptions struct {
 }
 
 // SetNIC sets the NIC.
-func (d *DeviceOptions) SetNIC(nic NIC) {
+func (d *DeviceOptions) setNIC(nic NIC) {
 	d.NIC = nic
 }
 
 // SetMAC sets the device's MAC.
-func (d *DeviceOptions) SetMAC(mac net.HardwareAddr) {
+func (d *DeviceOptions) setMAC(mac net.HardwareAddr) {
 	d.MAC = mac
 }
 
@@ -58,8 +58,10 @@ func (d *DeviceOptions) SetMAC(mac net.HardwareAddr) {
 // WithNIC/WithMAC/WithPCAP functions can be the same across all Options
 // structs.
 type DeviceOptioner interface {
-	SetNIC(NIC)
-	SetMAC(net.HardwareAddr)
+	*UserOptions | *DeviceOptions
+
+	setNIC(NIC)
+	setMAC(net.HardwareAddr)
 }
 
 // Opt is a configurer useed with either *DeviceOptions or *UserOptions.
@@ -79,7 +81,7 @@ func WithPCAP[DO DeviceOptioner](outputFile string) Opt[DO] {
 // WithNIC changes the default NIC device QEMU emulates from e1000 to the given value.
 func WithNIC[DO DeviceOptioner](nic NIC) Opt[DO] {
 	return func(netdev string, id *qemu.IDAllocator, qopts *qemu.Options, opts DO) error {
-		opts.SetNIC(nic)
+		opts.setNIC(nic)
 		return nil
 	}
 }
@@ -88,7 +90,7 @@ func WithNIC[DO DeviceOptioner](nic NIC) Opt[DO] {
 func WithMAC[DO DeviceOptioner](mac net.HardwareAddr) Opt[DO] {
 	return func(netdev string, id *qemu.IDAllocator, qops *qemu.Options, opts DO) error {
 		if mac != nil {
-			opts.SetMAC(mac)
+			opts.setMAC(mac)
 		}
 		return nil
 	}
