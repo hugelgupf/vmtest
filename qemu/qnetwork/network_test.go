@@ -143,7 +143,8 @@ func TestUserIPv4(t *testing.T) {
 	}
 
 	// Serve HTTP on the host on a random port.
-	http.Handle("/", http.FileServer(http.FS(fs)))
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.FS(fs)))
 
 	for _, tt := range []struct {
 		nic        NIC
@@ -186,7 +187,9 @@ shutdown
 			d := t.TempDir()
 			_ = os.WriteFile(filepath.Join(d, "client.sh"), []byte(fmt.Sprintf(clientScript, port)), 0o777)
 
-			s := &http.Server{}
+			s := &http.Server{
+				Handler: mux,
+			}
 			initramfs := uroot.Opts{
 				InitCmd:   "init",
 				UinitCmd:  "gosh",
@@ -232,5 +235,79 @@ shutdown
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestPCAP(t *testing.T) {
+	fs := fstest.MapFS{
+		"hello": &fstest.MapFile{
+			Data:    []byte("all hello all world\n"),
+			Mode:    0o777,
+			ModTime: time.Now(),
+		},
+	}
+
+	// Serve HTTP on the host on a random port.
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.FS(fs)))
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	clientScript := `
+set -x
+ip addr add 192.168.0.10/24 dev eth0
+ip link set eth0 up
+wget http://192.168.0.2:%d/hello
+cat ./hello
+shutdown
+`
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "client.sh"), []byte(fmt.Sprintf(clientScript, port)), 0o777)
+
+	s := &http.Server{
+		Handler: mux,
+	}
+	initramfs := uroot.Opts{
+		InitCmd:   "init",
+		UinitCmd:  "gosh",
+		UinitArgs: []string{"script.sh"},
+		TempDir:   t.TempDir(),
+		Commands: uroot.BusyBoxCmds(
+			"github.com/u-root/u-root/cmds/core/cat",
+			"github.com/u-root/u-root/cmds/core/gosh",
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/u-root/u-root/cmds/core/ip",
+			"github.com/u-root/u-root/cmds/core/shutdown",
+			"github.com/u-root/u-root/cmds/core/wget",
+		),
+		ExtraFiles: []string{filepath.Join(d, "client.sh") + ":script.sh"},
+	}
+	pcap := filepath.Join(t.TempDir(), "out.pcap")
+	vm, err := qemu.Start(
+		qemu.ArchUseEnvv,
+		uqemu.WithUrootInitramfsT(t, initramfs),
+		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
+		qemu.WithVMTimeout(60*time.Second),
+		qemu.ServeHTTP(s, ln),
+		IPv4HostNetwork("192.168.0.0/24", WithPCAP[*UserOptions](pcap)),
+	)
+	if err != nil {
+		t.Fatalf("Failed to start client VM: %v", err)
+	}
+	// Output of `cat ./hello`
+	if _, err := vm.Console.ExpectString("all hello all world"); err != nil {
+		t.Fatal(err)
+	}
+	if err := vm.Wait(); err != nil {
+		t.Fatal(err)
+	}
+
+	if fi, err := os.Stat(pcap); err != nil {
+		t.Fatal(err)
+	} else if fi.Size() == 0 {
+		t.Fatalf("PCAP file is empty")
 	}
 }
