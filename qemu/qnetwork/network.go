@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -30,8 +31,8 @@ const (
 	NICVirtioNet NIC = "virtio-net"
 )
 
-// Options are network device options.
-type Options struct {
+// DeviceOptions are network device options.
+type DeviceOptions struct {
 	// NIC is the NIC device that QEMU emulates.
 	NIC NIC
 
@@ -39,13 +40,26 @@ type Options struct {
 	MAC net.HardwareAddr
 }
 
+func (d *DeviceOptions) SetNIC(nic NIC) {
+	d.NIC = nic
+}
+
+func (d *DeviceOptions) SetMAC(mac net.HardwareAddr) {
+	d.MAC = mac
+}
+
+type DeviceOptioner interface {
+	SetNIC(NIC)
+	SetMAC(net.HardwareAddr)
+}
+
 // Opt returns additional QEMU command-line parameters based on the net
 // device ID.
-type Opt func(netdev string, id *qemu.IDAllocator, opts *Options) []string
+type Opt[DO DeviceOptioner] func(netdev string, id *qemu.IDAllocator, opts DO) []string
 
 // WithPCAP captures network traffic and saves it to outputFile.
-func WithPCAP(outputFile string) Opt {
-	return func(netdev string, id *qemu.IDAllocator, opts *Options) []string {
+func WithPCAP[DO DeviceOptioner](outputFile string) Opt[DO] {
+	return func(netdev string, id *qemu.IDAllocator, opts DO) []string {
 		return []string{
 			"-object",
 			fmt.Sprintf("filter-dump,id=%s,netdev=%s,file=%s", id.ID("filter"), netdev, outputFile),
@@ -54,18 +68,18 @@ func WithPCAP(outputFile string) Opt {
 }
 
 // WithNIC changes the default NIC device QEMU emulates from e1000 to the given value.
-func WithNIC(nic NIC) Opt {
-	return func(netdev string, id *qemu.IDAllocator, opts *Options) []string {
-		opts.NIC = nic
+func WithNIC[DO DeviceOptioner](nic NIC) Opt[DO] {
+	return func(netdev string, id *qemu.IDAllocator, opts DO) []string {
+		opts.SetNIC(nic)
 		return nil
 	}
 }
 
 // WithMAC assigns a MAC address to the guest interface.
-func WithMAC(mac net.HardwareAddr) Opt {
-	return func(netdev string, id *qemu.IDAllocator, opts *Options) []string {
+func WithMAC[DO DeviceOptioner](mac net.HardwareAddr) Opt[DO] {
+	return func(netdev string, id *qemu.IDAllocator, opts DO) []string {
 		if mac != nil {
-			opts.MAC = mac
+			opts.SetMAC(mac)
 		}
 		return nil
 	}
@@ -99,7 +113,7 @@ func NewInterVM() *InterVM {
 }
 
 // NewVM returns a Device that can be used with a new QEMU VM.
-func (n *InterVM) NewVM(nopts ...Opt) qemu.Fn {
+func (n *InterVM) NewVM(nopts ...Opt[*DeviceOptions]) qemu.Fn {
 	if n == nil {
 		return nil
 	}
@@ -114,7 +128,7 @@ func (n *InterVM) NewVM(nopts ...Opt) qemu.Fn {
 		}
 		devID := alloc.ID("vm")
 
-		opts := Options{
+		opts := DeviceOptions{
 			// Default NIC.
 			NIC: NICE1000,
 
@@ -152,35 +166,62 @@ func (n *InterVM) NewVM(nopts ...Opt) qemu.Fn {
 	}
 }
 
+// UserOptions are options for a QEMU "user" network.
+type UserOptions struct {
+	DeviceOptions
+
+	Args []string
+}
+
+// WithUserArg adds more comma-separated args to a `-netdev user,arg0,arg1,...`
+// invocation.
+func WithUserArg(arg ...string) Opt[*UserOptions] {
+	return func(netdev string, id *qemu.IDAllocator, opts *UserOptions) []string {
+		opts.Args = append(opts.Args, arg...)
+		return nil
+	}
+}
+
 // IPv4HostNetwork provides QEMU user-mode networking to the host.
 //
 // Net must be an IPv4 network.
 //
 // Default NIC is e1000, with a MAC address of 0e:00:00:00:00:01.
-func IPv4HostNetwork(ipnet *net.IPNet, nopts ...Opt) qemu.Fn {
+func IPv4HostNetwork(cidr string, nopts ...Opt[*UserOptions]) qemu.Fn {
 	return func(alloc *qemu.IDAllocator, qopts *qemu.Options) error {
+		// TODO: use IP
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return err
+		}
 		if ipnet.IP.To4() == nil {
 			return fmt.Errorf("HostNetwork must be configured with an IPv4 address")
 		}
 
 		netdevID := alloc.ID("netdev")
-		opts := Options{
-			// Default NIC.
-			NIC: NICE1000,
+		opts := UserOptions{
+			DeviceOptions: DeviceOptions{
+				// Default NIC.
+				NIC: NICE1000,
 
-			// MAC for the virtualized NIC.
-			//
-			// This is from the range of locally administered address ranges.
-			MAC: net.HardwareAddr{0xe, 0, 0, 0, 0, 1},
+				// MAC for the virtualized NIC.
+				//
+				// This is from the range of locally administered address ranges.
+				MAC: net.HardwareAddr{0xe, 0, 0, 0, 0, 1},
+			},
 		}
 
 		var args []string
 		for _, opt := range nopts {
 			args = append(args, opt(netdevID, alloc, &opts)...)
 		}
+		var extraUserArgs string
+		if len(opts.Args) > 0 {
+			extraUserArgs = "," + strings.Join(opts.Args, ",")
+		}
 		args = append(args,
 			"-device", fmt.Sprintf("%s,netdev=%s,mac=%s", opts.NIC, netdevID, opts.MAC),
-			"-netdev", fmt.Sprintf("user,id=%s,net=%s,dhcpstart=%s,ipv6=off", netdevID, ipnet, nthIP(ipnet, 8)),
+			"-netdev", fmt.Sprintf("user,id=%s,net=%s,dhcpstart=%s,ipv6=off%s", netdevID, ipnet, nthIP(ipnet, 8), extraUserArgs),
 		)
 		qopts.AppendQEMU(args...)
 		return nil
