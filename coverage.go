@@ -14,13 +14,13 @@ import (
 	"github.com/hugelgupf/vmtest/testtmp"
 )
 
-// ShareGOCOVERDIR shares GOCOVERDIR with the guest if it's available in the
+// ShareGOCOVERDIR shares VMTEST_GOCOVERDIR with the guest if it's available in the
 // environment.
 //
 // Call guest.GOCOVERDIR to set up the directory in the guest.
 func ShareGOCOVERDIR() Opt {
 	return func(t testing.TB, v *VMOptions) error {
-		goCov := os.Getenv("GOCOVERDIR")
+		goCov := os.Getenv("VMTEST_GOCOVERDIR")
 		if goCov == "" {
 			return nil
 		}

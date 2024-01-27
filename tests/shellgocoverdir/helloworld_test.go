@@ -21,10 +21,10 @@ func TestStartVM(t *testing.T) {
 		"donothing\nsync\necho \"TESTS PASSED MARKER\"\nshutdown",
 	} {
 		t.Run(script, func(t *testing.T) {
-			goCov := os.Getenv("GOCOVERDIR")
+			goCov := os.Getenv("VMTEST_GOCOVERDIR")
 			if goCov == "" {
 				goCov = testtmp.TempDir(t)
-				t.Setenv("GOCOVERDIR", goCov)
+				t.Setenv("VMTEST_GOCOVERDIR", goCov)
 			}
 
 			vmtest.RunCmdsInVM(t, script,
