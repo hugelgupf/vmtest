@@ -57,5 +57,4 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	pack.ag/tftp v1.0.1-0.20181129014014-07909dfbde3c // indirect
-	src.elv.sh v0.16.0-rc1.0.20220116211855-fda62502ad7f // indirect
 )

@@ -9,5 +9,5 @@ import (
 func TestStartVM(t *testing.T) {
 	vmtest.SkipWithoutQEMU(t)
 
-	vmtest.RunCmdsInVM(t, []string{`echo "Hello World"`})
+	vmtest.RunCmdsInVM(t, `echo "Hello World"`)
 }

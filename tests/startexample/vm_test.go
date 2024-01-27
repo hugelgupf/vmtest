@@ -20,7 +20,7 @@ func TestStart(t *testing.T) {
 	initramfs := uroot.Opts{
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/u-root/u-root/cmds/core/elvish",
+			"github.com/u-root/u-root/cmds/core/ls",
 			"github.com/hugelgupf/vmtest/tests/cmds/catfile",
 		),
 		InitCmd:   "init",

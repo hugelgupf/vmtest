@@ -23,7 +23,7 @@ func TestStartVM(t *testing.T) {
 	// Kernel coverage is copied to kcovDir during t.Cleanup, so induce it
 	// before the test is over by using a sub-test.
 	t.Run("test", func(t *testing.T) {
-		vmtest.RunCmdsInVM(t, []string{"donothing"},
+		vmtest.RunCmdsInVM(t, "donothing",
 			vmtest.WithGoBuildOpts(&golang.BuildOpts{
 				ExtraArgs: []string{"-cover", "-coverpkg=all", "-covermode=atomic"},
 			}),
