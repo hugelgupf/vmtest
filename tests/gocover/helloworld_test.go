@@ -26,10 +26,10 @@ func TestStartVM(t *testing.T) {
 		t.Setenv("VMTEST_GO_PROFILE", goProfile)
 	}
 
-	goCov := os.Getenv("GOCOVERDIR")
+	goCov := os.Getenv("VMTEST_GOCOVERDIR")
 	if goCov == "" {
 		goCov = testtmp.TempDir(t)
-		t.Setenv("GOCOVERDIR", goCov)
+		t.Setenv("VMTEST_GOCOVERDIR", goCov)
 	}
 
 	t.Run("test", func(t *testing.T) {
