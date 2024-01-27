@@ -33,16 +33,16 @@ func runTest() error {
 	}
 	defer func() { _ = mp.Unmount(0) }()
 
-	// Run the test script test.elv
-	test := "/shelltestdata/test.elv"
+	// Run the test script test.sh
+	test := "/shelltestdata/test.sh"
 	if _, err := os.Stat(test); os.IsNotExist(err) {
 		return errors.New("could not find any test script to run")
 	}
-	cmd := exec.Command("elvish", test)
+	cmd := exec.Command("gosh", test)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("test.elv ran unsuccessfully: %v", err)
+		return fmt.Errorf("test.sh ran unsuccessfully: %v", err)
 	}
 	return nil
 }

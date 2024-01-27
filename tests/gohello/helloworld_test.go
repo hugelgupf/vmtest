@@ -12,7 +12,7 @@ func TestStartVM(t *testing.T) {
 
 	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithVMOpt(vmtest.WithBusyboxCommands(
 		"github.com/u-root/u-root/cmds/core/dhclient",
-		"github.com/u-root/u-root/cmds/core/elvish",
+		"github.com/u-root/u-root/cmds/core/ls",
 		"github.com/u-root/u-root/cmds/core/false",
 	)))
 }
