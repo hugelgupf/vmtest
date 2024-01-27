@@ -17,6 +17,7 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 	"golang.org/x/exp/maps"
@@ -118,6 +119,9 @@ func (v *VMOptions) MergeInitramfs(buildOpts uroot.Opts) error {
 	if buildOpts.DefaultShell != "" {
 		v.Initramfs.DefaultShell = buildOpts.DefaultShell
 	}
+	if buildOpts.BuildOpts != nil {
+		v.Initramfs.BuildOpts = buildOpts.BuildOpts
+	}
 	return nil
 }
 
@@ -174,6 +178,15 @@ func WithInitramfsFiles(files ...string) Opt {
 	return func(_ testing.TB, v *VMOptions) error {
 		return v.MergeInitramfs(uroot.Opts{
 			ExtraFiles: files,
+		})
+	}
+}
+
+// WithGoBuildOpts replaces Go build options for the initramfs.
+func WithGoBuildOpts(g *golang.BuildOpts) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		return v.MergeInitramfs(uroot.Opts{
+			BuildOpts: g,
 		})
 	}
 }
