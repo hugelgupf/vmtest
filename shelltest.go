@@ -23,11 +23,11 @@ import (
 //
 //   - TODO: timeouts for individual individual commands.
 //   - TODO: It should check their exit status. Hahaha.
-func RunCmdsInVM(t *testing.T, script string, o ...Opt) {
+func RunCmdsInVM(t testing.TB, script string, o ...Opt) {
 	vm := StartVMAndRunCmds(t, script, o...)
 
 	if _, err := vm.Console.ExpectString("TESTS PASSED MARKER"); err != nil {
-		t.Errorf("Waiting for 'TESTS PASSED MARKER' signal: %v", err)
+		t.Errorf("Waiting for 'TESTS PASSED MARKER' failed -- script likely failed: %v", err)
 	}
 
 	if err := vm.Wait(); err != nil {
@@ -39,7 +39,7 @@ func RunCmdsInVM(t *testing.T, script string, o ...Opt) {
 // If the commands return, the VM will be shutdown.
 //
 // The VM can be configured with o.
-func StartVMAndRunCmds(t *testing.T, script string, o ...Opt) *qemu.VM {
+func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 	SkipWithoutQEMU(t)
 
 	sharedDir := testtmp.TempDir(t)

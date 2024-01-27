@@ -9,6 +9,7 @@ package vmtest
 import (
 	_ "github.com/u-root/u-root/cmds/core/cat"
 	_ "github.com/u-root/u-root/cmds/core/dhclient"
+	_ "github.com/u-root/u-root/cmds/core/false"
 	_ "github.com/u-root/u-root/cmds/core/gosh"
 	_ "github.com/u-root/u-root/cmds/core/init"
 	_ "github.com/u-root/u-root/cmds/core/ip"
