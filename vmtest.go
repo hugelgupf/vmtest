@@ -164,10 +164,22 @@ func WithMergedInitramfs(o uroot.Opts) Opt {
 }
 
 // WithBusyboxCommands merges more busybox commands into the initramfs build options.
+//
+// Note that busybox rewrites commands, so if attempting to get integration
+// test coverage of commands, use WithBinaryCommands.
 func WithBusyboxCommands(cmds ...string) Opt {
 	return func(_ testing.TB, v *VMOptions) error {
 		return v.MergeInitramfs(uroot.Opts{
 			Commands: uroot.BusyBoxCmds(cmds...),
+		})
+	}
+}
+
+// WithBinaryCommands merges more binary commands into the initramfs build options.
+func WithBinaryCommands(cmds ...string) Opt {
+	return func(_ testing.TB, v *VMOptions) error {
+		return v.MergeInitramfs(uroot.Opts{
+			Commands: uroot.BinaryCmds(cmds...),
 		})
 	}
 }
