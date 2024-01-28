@@ -17,6 +17,15 @@ RUN apt-get update &&                          \
         libfdt-dev                                  \
         libglib2.0-dev                              \
         libpixman-1-dev                             \
+        libssh-dev                                  \
+        libpmem-dev                                 \
+        libusb-dev                                  \
+        libcurl4-openssl-dev                        \
+        libtasn1-6-dev                              \
+        libiscsi-dev                                \
+        libglusterfs-dev                            \
+        libnfs-dev                                  \
+        libbpf-dev                                  \
         meson                                       \
         ninja-build                                 \
         python3                                     \
@@ -37,7 +46,7 @@ RUN git clone --depth=1 --branch=v4.7.0 https://gitlab.freedesktop.org/slirp/lib
 RUN cd libslirp && meson setup build && ninja -C build install
 
 # Build QEMU
-RUN git clone --depth=1 --recurse-submodules --branch=v8.1.0-rc2 https://github.com/qemu/qemu;
+RUN git clone --depth=1 --recurse-submodules --branch=v8.2.0 https://github.com/qemu/qemu;
 
 RUN cd qemu && mkdir build && cd build && ../configure                 \
         --target-list="x86_64-softmmu aarch64-softmmu arm-softmmu riscv64-softmmu ppc64-softmmu" \
@@ -53,7 +62,10 @@ RUN cd qemu && mkdir build && cd build && ../configure                 \
         qemu-system-aarch64       \
         qemu-system-arm           \
         qemu-system-riscv64       \
-        qemu-system-ppc64;
+        qemu-system-ppc64         \
+        qemu-bridge-helper        \
+        qemu-img                  \
+        qemu-nbd;
 
 RUN git clone --depth=1 --branch=zappit https://github.com/hugelgupf/ldshim;
 
@@ -66,6 +78,9 @@ RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qem
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-arm;
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-riscv64;
 RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-system-ppc64;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-img;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-nbd;
+RUN ./ldshim/zappit/zappit --shim=./ldshim/ldshim --out=./zqemu ./qemu/build/qemu-bridge-helper;
 
 RUN cp -rL /root/qemu/build/pc-bios/ /root/zqemu/pc-bios;
 RUN cp -rL /root/qemu/pc-bios/* /root/zqemu/pc-bios;
