@@ -180,12 +180,9 @@ func TestTask(t *testing.T) {
 }
 
 func TestEventChannel(t *testing.T) {
-	logger := &ulogtest.Logger{TB: t}
-
 	initramfs := uroot.Opts{
 		InitCmd:  "init",
 		UinitCmd: "eventemitter",
-		TempDir:  t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
@@ -194,7 +191,7 @@ func TestEventChannel(t *testing.T) {
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+		WithUrootInitramfsT(t, initramfs),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.EventChannel[event.Event]("test", events),
 	)
@@ -225,14 +222,11 @@ func TestEventChannel(t *testing.T) {
 }
 
 func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
-	logger := &ulogtest.Logger{TB: t}
-
 	initramfs := uroot.Opts{
 		InitCmd:  "init",
 		UinitCmd: "eventemitter",
 		// Instruct eventemitter not to close the event channel.
 		UinitArgs: []string{"-skip-close"},
-		TempDir:   t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
@@ -241,7 +235,7 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+		WithUrootInitramfsT(t, initramfs),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.EventChannel[event.Event]("test", events),
 	)
@@ -269,20 +263,16 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 
 // Tests that we do not hang forever when HaltOnKernelPanic is passed.
 func TestKernelPanic(t *testing.T) {
-	logger := &ulogtest.Logger{TB: t}
-
 	// init exits after not finding anything to do, so kernel panics.
 	initramfs := uroot.Opts{
 		InitCmd: "init",
-		TempDir: t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 		),
 	}
-
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfs(logger, initramfs, filepath.Join(t.TempDir(), "initramfs.cpio")),
+		WithUrootInitramfsT(t, initramfs),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.HaltOnKernelPanic(),
 	)
@@ -322,7 +312,6 @@ func TestHTTPTask(t *testing.T) {
 		InitCmd:   "init",
 		UinitCmd:  "httpdownload",
 		UinitArgs: []string{"-url", fmt.Sprintf("http://192.168.0.2:%d/foobar", port)},
-		TempDir:   t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/u-root/u-root/cmds/core/dhclient",
@@ -355,7 +344,6 @@ func TestEventChannelCallback(t *testing.T) {
 	initramfs := uroot.Opts{
 		InitCmd:  "init",
 		UinitCmd: "eventemitter",
-		TempDir:  t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
@@ -455,7 +443,6 @@ func TestOutputFillsConsoleBuffers(t *testing.T) {
 		InitCmd:   "init",
 		UinitCmd:  "helloworld",
 		UinitArgs: []string{"-n", "4000"},
-		TempDir:   t.TempDir(),
 		Commands: uroot.BusyBoxCmds(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
