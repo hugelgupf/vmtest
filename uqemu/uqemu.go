@@ -80,5 +80,8 @@ func WithUrootInitramfs(logger ulog.Logger, uopts uroot.Opts, initrdPath string)
 // WithUrootInitramfsT adds an initramfs to the VM using a logger for t and
 // placing the initramfs in a test-created temp dir.
 func WithUrootInitramfsT(t testing.TB, initramfs uroot.Opts) qemu.Fn {
+	if initramfs.TempDir == "" {
+		initramfs.TempDir = testtmp.TempDir(t)
+	}
 	return WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(testtmp.TempDir(t), "initramfs.cpio"))
 }
