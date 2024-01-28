@@ -227,11 +227,16 @@ func StartContext(ctx context.Context, arch Arch, fns ...Fn) (*VM, error) {
 
 // StartT starts a VM with the given configuration.
 //
+// Logs serial console to t.Logf using name as a prefix, with relative timestamps.
+//
 // If the start fails, the test fails. At the end of the test, the command-line
 // invocation for the VM is logged for reproduction. Also ensures that
 // vm.Wait() was called by the end of the test, as it is required to drain
 // console output.
 func StartT(t testing.TB, name string, arch Arch, fns ...Fn) *VM {
+	fns = append(fns,
+		LogSerialByLine(DefaultPrint(name, t.Logf)),
+	)
 	vm, err := Start(arch, fns...)
 	if err != nil {
 		t.Fatalf("Failed to start QEMU VM %s: %v", name, err)
