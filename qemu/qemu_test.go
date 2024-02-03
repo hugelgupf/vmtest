@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
 	"github.com/u-root/u-root/pkg/uroot/initramfs"
+	"github.com/u-root/uio/ulog/ulogtest"
 	"golang.org/x/exp/slices"
 )
 
