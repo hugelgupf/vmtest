@@ -23,8 +23,8 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/qnetwork"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
-	"github.com/u-root/u-root/pkg/ulog/ulogtest"
 	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/uio/ulog/ulogtest"
 	"golang.org/x/sys/unix"
 )
 
