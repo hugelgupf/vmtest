@@ -224,8 +224,7 @@ func WithSharedDir(dir string) Opt {
 // the qemu package.
 //
 // By default, StartVM adds command-line streaming to t.Logf, appends
-// VMTEST_IN_GUEST=1 to the kernel command-line, and adds virtio random
-// support.
+// VMTEST_IN_GUEST=1 to the kernel command-line.
 //
 // StartVM will print the QEMU command-line for reproduction when the test
 // finishes. The test will fail if VM.Wait is not called.
@@ -254,7 +253,6 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 		// Tests use this env var to identify they are running inside a
 		// vmtest using SkipIfNotInVM.
 		qemu.WithAppendKernel("VMTEST_IN_GUEST=1"),
-		qemu.VirtioRandom(),
 	}
 	if o.SharedDir != "" {
 		qopts = append(qopts,

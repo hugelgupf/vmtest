@@ -184,7 +184,6 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 		Env: env,
 		Commands: append(
 			uroot.BusyBoxCmds(
-				"github.com/u-root/u-root/cmds/core/dhclient",
 				"github.com/u-root/u-root/cmds/core/init",
 				"github.com/hugelgupf/vmtest/vminit/gouinit",
 			),
