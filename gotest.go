@@ -16,6 +16,7 @@ import (
 	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/internal/testevent"
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/qevent"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/u-root/pkg/uroot"
@@ -217,7 +218,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 		}
 	}
 
-	errors, err := qemu.ReadEventFile[testevent.ErrorEvent](filepath.Join(sharedDir, "errors.json"))
+	errors, err := qevent.ReadFile[testevent.ErrorEvent](filepath.Join(sharedDir, "errors.json"))
 	if err != nil {
 		t.Errorf("Reading test events: %v", err)
 	}
@@ -226,7 +227,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	}
 
 	tc := json2test.NewTestCollector()
-	events, err := qemu.ReadEventFile[json2test.TestEvent](filepath.Join(sharedDir, "results.json"))
+	events, err := qevent.ReadFile[json2test.TestEvent](filepath.Join(sharedDir, "results.json"))
 	if err != nil {
 		t.Errorf("Reading Go test events: %v", err)
 	}
