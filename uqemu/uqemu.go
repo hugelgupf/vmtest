@@ -28,17 +28,15 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/uroot"
-	"github.com/u-root/u-root/pkg/uroot/initramfs"
-	"github.com/u-root/uio/ulog"
-	"github.com/u-root/uio/ulog/ulogtest"
+	"github.com/u-root/mkuimage/uimage"
+	"github.com/u-root/uio/llog"
 )
 
-// ErrOutputFileSpecified is returned when uroot.Opts are supplied that already
+// ErrOutputFileSpecified is returned when uimage.Opts are supplied that already
 // have an initramfs file.
 var ErrOutputFileSpecified = errors.New("initramfs output file must be left unspecified")
 
-// WithUrootInitramfs builds the specified initramfs and attaches it to the QEMU VM.
+// WithUimage builds the specified initramfs and attaches it to the QEMU VM.
 //
 // When VMTEST_INITRAMFS_OVERRIDE is set, it foregoes building an initramfs and
 // uses the initramfs path in the env variable.
@@ -46,42 +44,32 @@ var ErrOutputFileSpecified = errors.New("initramfs output file must be left unsp
 // The arch used to build the initramfs is derived by default from the arch set
 // in qemu.Options, which is either explicitly set, VMTEST_ARCH, or if unset,
 // runtime.GOARCH (the host GOARCH).
-func WithUrootInitramfs(logger ulog.Logger, uopts uroot.Opts, initrdPath string) qemu.Fn {
+func WithUimage(l *llog.Logger, initrdPath string, mods ...uimage.Modifier) qemu.Fn {
 	return func(alloc *qemu.IDAllocator, opts *qemu.Options) error {
 		if override := os.Getenv("VMTEST_INITRAMFS_OVERRIDE"); len(override) > 0 {
 			opts.Initramfs = override
 			return nil
 		}
 
-		if uopts.Env == nil {
-			uopts.Env = golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(opts.Arch())))
-		}
-
-		// We're going to fill this in ourselves.
-		if uopts.OutputFile != nil {
-			return ErrOutputFileSpecified
-		}
-
-		initrdW, err := initramfs.CPIO.OpenWriter(logger, initrdPath)
-		if err != nil {
-			return fmt.Errorf("failed to create initramfs writer: %w", err)
-		}
-		uopts.OutputFile = initrdW
-
-		if err := uroot.CreateInitramfs(logger, uopts); err != nil {
+		mods = append([]uimage.Modifier{
+			uimage.WithEnv(
+				golang.DisableCGO(),
+				golang.WithGOARCH(string(opts.Arch())),
+			),
+			uimage.WithCPIOOutput(initrdPath),
+		}, mods...)
+		if err := uimage.Create(l, mods...); err != nil {
 			return fmt.Errorf("error creating initramfs: %w", err)
 		}
-
 		opts.Initramfs = initrdPath
 		return nil
 	}
 }
 
-// WithUrootInitramfsT adds an initramfs to the VM using a logger for t and
+// WithUimageT adds an initramfs to the VM using a logger for t and
 // placing the initramfs in a test-created temp dir.
-func WithUrootInitramfsT(t testing.TB, initramfs uroot.Opts) qemu.Fn {
-	if initramfs.TempDir == "" {
-		initramfs.TempDir = testtmp.TempDir(t)
-	}
-	return WithUrootInitramfs(&ulogtest.Logger{TB: t}, initramfs, filepath.Join(testtmp.TempDir(t), "initramfs.cpio"))
+func WithUimageT(t testing.TB, mods ...uimage.Modifier) qemu.Fn {
+	l := llog.Test(t)
+	initrdPath := filepath.Join(testtmp.TempDir(t), "initramfs.cpio")
+	return WithUimage(l, initrdPath, append(mods, uimage.WithTempDir(testtmp.TempDir(t)))...)
 }

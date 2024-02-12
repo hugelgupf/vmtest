@@ -130,22 +130,17 @@ func TestStartVM(t *testing.T) {
 
 ```go
 func TestStartVM(t *testing.T) {
-    initramfs := uroot.Opts{
-        TempDir:   t.TempDir(),
-        InitCmd:   "init",
-        UinitCmd:  "cat",
-        UinitArgs: []string{"etc/thatfile"},
-        Commands: uroot.BusyBoxCmds(
-            "github.com/u-root/u-root/cmds/core/init",
-            "github.com/u-root/u-root/cmds/core/cat",
-        ),
-        ExtraFiles: []string{
-            "./testdata/foo:etc/thatfile",
-        },
-    }
     vm, err := qemu.Start(
         qemu.ArchUseEnvv,
-        uqemu.WithUrootInitramfsT(t, initramfs),
+        uqemu.WithUimageT(t,
+                uimage.WithInit("init"),
+                uimage.WithUinit("cat", "etc/thatfile"),
+                uimage.WithBusyboxCommands(
+                        "github.com/u-root/u-root/cmds/core/init",
+                        "github.com/u-root/u-root/cmds/core/cat",
+                ),
+                uimage.WithFiles("./testdata/foo:etc/thatfile"),
+        ),
 
         // Other options...
     )

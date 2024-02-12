@@ -21,15 +21,15 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/qnetwork"
-	"github.com/u-root/u-root/pkg/uroot"
-	"github.com/u-root/uio/ulog/ulogtest"
+	"github.com/u-root/mkuimage/uimage"
+	"github.com/u-root/uio/llog"
 )
 
 func TestOverride(t *testing.T) {
 	want := "foo.cpio"
 	t.Setenv("VMTEST_INITRAMFS_OVERRIDE", "foo.cpio")
 
-	got, err := qemu.OptionsFor(qemu.ArchUseEnvv, WithUrootInitramfs(nil, uroot.Opts{}, ""))
+	got, err := qemu.OptionsFor(qemu.ArchUseEnvv, WithUimage(nil, ""))
 	if err != nil {
 		t.Errorf("OptionsFor = %v", err)
 	}
@@ -49,10 +49,6 @@ func replaceCtl(str []byte) []byte {
 }
 
 func TestStartVM(t *testing.T) {
-	tmp := t.TempDir()
-	logger := &ulogtest.Logger{TB: t}
-	initrdPath := filepath.Join(tmp, "initramfs.cpio")
-
 	r, w := io.Pipe()
 
 	var wg sync.WaitGroup
@@ -68,16 +64,14 @@ func TestStartVM(t *testing.T) {
 		}
 	}()
 
-	initramfs := uroot.Opts{
-		InitCmd:  "init",
-		UinitCmd: "helloworld",
-		TempDir:  tmp,
-		Commands: uroot.BusyBoxCmds(
+	vm, err := qemu.Start(qemu.ArchUseEnvv, qemu.WithSerialOutput(w), WithUimageT(t,
+		uimage.WithInit("init"),
+		uimage.WithUinit("helloworld"),
+		uimage.WithBusyboxCommands(
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
 		),
-	}
-	vm, err := qemu.Start(qemu.ArchUseEnvv, WithUrootInitramfs(logger, initramfs, initrdPath), qemu.WithSerialOutput(w))
+	))
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
 	}
@@ -94,28 +88,22 @@ func TestStartVM(t *testing.T) {
 }
 
 func TestTask(t *testing.T) {
-	tmp := t.TempDir()
-	logger := &ulogtest.Logger{TB: t}
-	initrdPath := filepath.Join(tmp, "initramfs.cpio")
-
 	r, w := io.Pipe()
 
 	var taskGotCanceled bool
 	var taskSawHelloWorld bool
 	var vmExitErr error
 
-	initramfs := uroot.Opts{
-		InitCmd:  "init",
-		UinitCmd: "helloworld",
-		TempDir:  tmp,
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
-		),
-	}
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfs(logger, initramfs, initrdPath),
+		WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("helloworld"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+			),
+		),
 		qemu.WithSerialOutput(w),
 		// Tests that we can wait for VM to start.
 		qemu.WithTask(qemu.WaitVMStarted(func(ctx context.Context, n *qemu.Notifications) error {
@@ -179,15 +167,14 @@ func TestTask(t *testing.T) {
 // Tests that we do not hang forever when HaltOnKernelPanic is passed.
 func TestKernelPanic(t *testing.T) {
 	// init exits after not finding anything to do, so kernel panics.
-	initramfs := uroot.Opts{
-		InitCmd: "init",
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-		),
-	}
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfsT(t, initramfs),
+		WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.HaltOnKernelPanic(),
 	)
@@ -223,19 +210,17 @@ func TestHTTPTask(t *testing.T) {
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	s := &http.Server{}
-	initramfs := uroot.Opts{
-		InitCmd:   "init",
-		UinitCmd:  "httpdownload",
-		UinitArgs: []string{"-url", fmt.Sprintf("http://192.168.0.2:%d/foobar", port)},
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/u-root/u-root/cmds/core/dhclient",
-			"github.com/hugelgupf/vmtest/tests/cmds/httpdownload",
-		),
-	}
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfsT(t, initramfs),
+		WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("httpdownload", "-url", fmt.Sprintf("http://192.168.0.2:%d/foobar", port)),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/u-root/u-root/cmds/core/dhclient",
+				"github.com/hugelgupf/vmtest/tests/cmds/httpdownload",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.VirtioRandom(), // dhclient needs to generate a random number.
 		qemu.ServeHTTP(s, ln),
@@ -256,19 +241,19 @@ func TestHTTPTask(t *testing.T) {
 }
 
 func TestInvalidInitramfs(t *testing.T) {
-	logger := &ulogtest.Logger{TB: t}
+	logger := llog.Test(t)
 
 	for _, tt := range []struct {
 		name       string
-		initramfs  uroot.Opts
+		initramfs  []uimage.Modifier
 		initrdPath string
 	}{
 		{
 			name: "missing-tmpdir",
-			initramfs: uroot.Opts{
-				InitCmd:  "init",
-				UinitCmd: "qemutest1",
-				Commands: uroot.BusyBoxCmds(
+			initramfs: []uimage.Modifier{
+				uimage.WithInit("init"),
+				uimage.WithUinit("qemutest1"),
+				uimage.WithBusyboxCommands(
 					"github.com/u-root/u-root/cmds/core/init",
 					"github.com/hugelgupf/vmtest/tests/cmds/qemutest1",
 				),
@@ -282,7 +267,7 @@ func TestInvalidInitramfs(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := qemu.Start(qemu.ArchUseEnvv,
-				WithUrootInitramfs(logger, tt.initramfs, tt.initrdPath),
+				WithUimage(logger, tt.initrdPath, tt.initramfs...),
 				qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 			)
 			if err == nil {
@@ -296,18 +281,16 @@ func TestInvalidInitramfs(t *testing.T) {
 func TestOutputFillsConsoleBuffers(t *testing.T) {
 	// 4000 repeats of Hello world fill the buffer of the pty used by the
 	// Expect library. Make sure this does not cause hangs.
-	initramfs := uroot.Opts{
-		InitCmd:   "init",
-		UinitCmd:  "helloworld",
-		UinitArgs: []string{"-n", "4000"},
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
-		),
-	}
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		WithUrootInitramfsT(t, initramfs),
+		WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("helloworld", "-n", "4000"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 	)
 	if err != nil {

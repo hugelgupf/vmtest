@@ -8,7 +8,7 @@ import (
 
 	"github.com/hugelgupf/vmtest"
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/mkuimage/uimage"
 )
 
 func TestStart(t *testing.T) {
@@ -17,20 +17,16 @@ func TestStart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	initramfs := uroot.Opts{
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/u-root/u-root/cmds/core/ls",
-			"github.com/hugelgupf/vmtest/tests/cmds/catfile",
-		),
-		InitCmd:   "init",
-		UinitCmd:  "catfile",
-		UinitArgs: []string{"-file", "/testdata/hello"},
-		TempDir:   t.TempDir(),
-	}
-
 	vm := vmtest.StartVM(t,
-		vmtest.WithMergedInitramfs(initramfs),
+		vmtest.WithUimage(
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/u-root/u-root/cmds/core/ls",
+				"github.com/hugelgupf/vmtest/tests/cmds/catfile",
+			),
+			uimage.WithInit("init"),
+			uimage.WithUinit("catfile", "-file", "/testdata/hello"),
+		),
 		vmtest.WithSharedDir(dir),
 		vmtest.WithQEMUFn(qemu.WithVMTimeout(time.Minute)),
 	)

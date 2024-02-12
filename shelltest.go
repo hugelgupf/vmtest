@@ -12,7 +12,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
-	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/mkuimage/uimage"
 )
 
 // RunCmdsInVM starts a VM and runs the given script using gosh in the guest.
@@ -52,19 +52,17 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 		}
 	}
 
-	initramfs := uroot.Opts{
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/u-root/u-root/cmds/core/gosh",
-			"github.com/hugelgupf/vmtest/vminit/shelluinit",
-		),
-		InitCmd:  "init",
-		UinitCmd: "shelluinit",
-		TempDir:  testtmp.TempDir(t),
-	}
 	return StartVM(t, append([]Opt{
 		WithQEMUFn(qemu.P9Directory(sharedDir, "shelltest")),
-		WithMergedInitramfs(initramfs),
+		WithUimage(
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/u-root/u-root/cmds/core/gosh",
+				"github.com/hugelgupf/vmtest/vminit/shelluinit",
+			),
+			uimage.WithInit("init"),
+			uimage.WithUinit("shelluinit"),
+		),
 		CollectKernelCoverage(),
 		ShareGOCOVERDIR(),
 	}, o...)...)
