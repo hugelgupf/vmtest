@@ -9,6 +9,8 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
+	"github.com/u-root/mkuimage/uimage"
+	"github.com/u-root/mkuimage/uimage/builder"
 )
 
 func TestStartVM(t *testing.T) {
@@ -28,11 +30,14 @@ func TestStartVM(t *testing.T) {
 			}
 
 			vmtest.RunCmdsInVM(t, script,
-				vmtest.WithGoBuildOpts(&golang.BuildOpts{
-					ExtraArgs: []string{"-cover", "-coverpkg=all", "-covermode=atomic"},
-				}),
+				vmtest.WithUimage(
+					uimage.WithCommands(&golang.BuildOpts{
+						ExtraArgs: []string{"-cover", "-coverpkg=all", "-covermode=atomic"},
+					}, builder.Binary,
+						"github.com/hugelgupf/vmtest/tests/cmds/donothing",
+					),
+				),
 				vmtest.WithBusyboxCommands(
-					"github.com/hugelgupf/vmtest/tests/cmds/donothing",
 					"github.com/u-root/u-root/cmds/core/sync",
 					"github.com/u-root/u-root/cmds/core/shutdown",
 				),

@@ -13,23 +13,22 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
 	"github.com/hugelgupf/vmtest/uqemu"
-	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/mkuimage/uimage"
 	"golang.org/x/sys/unix"
 )
 
 func TestEventChannel(t *testing.T) {
-	initramfs := uroot.Opts{
-		InitCmd:  "init",
-		UinitCmd: "eventemitter",
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
-		),
-	}
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUrootInitramfsT(t, initramfs),
+		uqemu.WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("eventemitter"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		EventChannel[event.Event]("test", events),
 	)
@@ -60,20 +59,18 @@ func TestEventChannel(t *testing.T) {
 }
 
 func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
-	initramfs := uroot.Opts{
-		InitCmd:  "init",
-		UinitCmd: "eventemitter",
-		// Instruct eventemitter not to close the event channel.
-		UinitArgs: []string{"-skip-close"},
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
-		),
-	}
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUrootInitramfsT(t, initramfs),
+		uqemu.WithUimageT(t,
+			uimage.WithInit("init"),
+			// Instruct eventemitter not to close the event channel.
+			uimage.WithUinit("eventemitter", "-skip-close"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		EventChannel[event.Event]("test", events),
 	)
@@ -100,18 +97,17 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 }
 
 func TestEventChannelCallback(t *testing.T) {
-	initramfs := uroot.Opts{
-		InitCmd:  "init",
-		UinitCmd: "eventemitter",
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
-		),
-	}
 	var events []event.Event
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUrootInitramfsT(t, initramfs),
+		uqemu.WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("eventemitter"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		EventChannelCallback[event.Event]("test", func(e event.Event) {
 			events = append(events, e)

@@ -12,7 +12,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/uqemu"
-	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/mkuimage/uimage"
 )
 
 func TestInterVM(t *testing.T) {
@@ -63,30 +63,26 @@ shutdown
 	} {
 		t.Run(fmt.Sprintf("%s-%s", tt.nic, tt.serverMAC), func(t *testing.T) {
 			net := NewInterVM()
-			initramfs := uroot.Opts{
-				InitCmd:   "init",
-				UinitCmd:  "gosh",
-				UinitArgs: []string{"script.sh"},
-				TempDir:   t.TempDir(),
-				Commands: uroot.BusyBoxCmds(
-					"github.com/u-root/u-root/cmds/core/cat",
-					"github.com/u-root/u-root/cmds/core/gosh",
-					"github.com/u-root/u-root/cmds/core/init",
-					"github.com/u-root/u-root/cmds/core/ip",
-					"github.com/u-root/u-root/cmds/core/ls",
-					"github.com/u-root/u-root/cmds/core/shutdown",
-					"github.com/u-root/u-root/cmds/core/wget",
-					"github.com/u-root/u-root/cmds/exp/pxeserver",
-				),
-			}
-
-			initramfs.ExtraFiles = []string{
-				filepath.Join(d, "server.sh") + ":script.sh",
-				filepath.Join(d, "hello") + ":etc/hello",
-			}
 			serverVM, err := qemu.Start(
 				qemu.ArchUseEnvv,
-				uqemu.WithUrootInitramfsT(t, initramfs),
+				uqemu.WithUimageT(t,
+					uimage.WithInit("init"),
+					uimage.WithUinit("gosh", "script.sh"),
+					uimage.WithBusyboxCommands(
+						"github.com/u-root/u-root/cmds/core/cat",
+						"github.com/u-root/u-root/cmds/core/gosh",
+						"github.com/u-root/u-root/cmds/core/init",
+						"github.com/u-root/u-root/cmds/core/ip",
+						"github.com/u-root/u-root/cmds/core/ls",
+						"github.com/u-root/u-root/cmds/core/shutdown",
+						"github.com/u-root/u-root/cmds/core/wget",
+						"github.com/u-root/u-root/cmds/exp/pxeserver",
+					),
+					uimage.WithFiles(
+						filepath.Join(d, "server.sh")+":script.sh",
+						filepath.Join(d, "hello")+":etc/hello",
+					),
+				),
 				qemu.LogSerialByLine(qemu.DefaultPrint("server", t.Logf)),
 				qemu.WithVMTimeout(60*time.Second),
 				net.NewVM(WithNIC[*DeviceOptions](tt.nic), WithMAC[*DeviceOptions](tt.serverMAC)),
@@ -101,10 +97,25 @@ shutdown
 				_ = serverVM.Wait()
 			})
 
-			initramfs.ExtraFiles = []string{filepath.Join(d, "client.sh") + ":script.sh"}
 			clientVM, err := qemu.Start(
 				qemu.ArchUseEnvv,
-				uqemu.WithUrootInitramfsT(t, initramfs),
+				uqemu.WithUimageT(t,
+					uimage.WithInit("init"),
+					uimage.WithUinit("gosh", "script.sh"),
+					uimage.WithBusyboxCommands(
+						"github.com/u-root/u-root/cmds/core/cat",
+						"github.com/u-root/u-root/cmds/core/gosh",
+						"github.com/u-root/u-root/cmds/core/init",
+						"github.com/u-root/u-root/cmds/core/ip",
+						"github.com/u-root/u-root/cmds/core/ls",
+						"github.com/u-root/u-root/cmds/core/shutdown",
+						"github.com/u-root/u-root/cmds/core/wget",
+						"github.com/u-root/u-root/cmds/exp/pxeserver",
+					),
+					uimage.WithFiles(
+						filepath.Join(d, "client.sh")+":script.sh",
+					),
+				),
 				qemu.LogSerialByLine(qemu.DefaultPrint("client", t.Logf)),
 				qemu.WithVMTimeout(60*time.Second),
 				net.NewVM(WithNIC[*DeviceOptions](tt.nic), WithMAC[*DeviceOptions](tt.clientMAC)),
@@ -190,25 +201,24 @@ shutdown
 			s := &http.Server{
 				Handler: mux,
 			}
-			initramfs := uroot.Opts{
-				InitCmd:   "init",
-				UinitCmd:  "gosh",
-				UinitArgs: []string{"script.sh"},
-				TempDir:   t.TempDir(),
-				Commands: uroot.BusyBoxCmds(
-					"github.com/u-root/u-root/cmds/core/cat",
-					"github.com/u-root/u-root/cmds/core/gosh",
-					"github.com/u-root/u-root/cmds/core/init",
-					"github.com/u-root/u-root/cmds/core/ip",
-					"github.com/u-root/u-root/cmds/core/ls",
-					"github.com/u-root/u-root/cmds/core/shutdown",
-					"github.com/u-root/u-root/cmds/core/wget",
-				),
-				ExtraFiles: []string{filepath.Join(d, "client.sh") + ":script.sh"},
-			}
 			vm, err := qemu.Start(
 				qemu.ArchUseEnvv,
-				uqemu.WithUrootInitramfsT(t, initramfs),
+				uqemu.WithUimageT(t,
+					uimage.WithInit("init"),
+					uimage.WithUinit("gosh", "script.sh"),
+					uimage.WithBusyboxCommands(
+						"github.com/u-root/u-root/cmds/core/cat",
+						"github.com/u-root/u-root/cmds/core/gosh",
+						"github.com/u-root/u-root/cmds/core/init",
+						"github.com/u-root/u-root/cmds/core/ip",
+						"github.com/u-root/u-root/cmds/core/ls",
+						"github.com/u-root/u-root/cmds/core/shutdown",
+						"github.com/u-root/u-root/cmds/core/wget",
+					),
+					uimage.WithFiles(
+						filepath.Join(d, "client.sh")+":script.sh",
+					),
+				),
 				qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 				qemu.WithVMTimeout(60*time.Second),
 				qemu.ServeHTTP(s, ln),
@@ -270,25 +280,24 @@ shutdown
 	s := &http.Server{
 		Handler: mux,
 	}
-	initramfs := uroot.Opts{
-		InitCmd:   "init",
-		UinitCmd:  "gosh",
-		UinitArgs: []string{"script.sh"},
-		TempDir:   t.TempDir(),
-		Commands: uroot.BusyBoxCmds(
-			"github.com/u-root/u-root/cmds/core/cat",
-			"github.com/u-root/u-root/cmds/core/gosh",
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/u-root/u-root/cmds/core/ip",
-			"github.com/u-root/u-root/cmds/core/shutdown",
-			"github.com/u-root/u-root/cmds/core/wget",
-		),
-		ExtraFiles: []string{filepath.Join(d, "client.sh") + ":script.sh"},
-	}
 	pcap := filepath.Join(t.TempDir(), "out.pcap")
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUrootInitramfsT(t, initramfs),
+		uqemu.WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("gosh", "script.sh"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/cat",
+				"github.com/u-root/u-root/cmds/core/gosh",
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/u-root/u-root/cmds/core/ip",
+				"github.com/u-root/u-root/cmds/core/shutdown",
+				"github.com/u-root/u-root/cmds/core/wget",
+			),
+			uimage.WithFiles(
+				filepath.Join(d, "client.sh")+":script.sh",
+			),
+		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.WithVMTimeout(60*time.Second),
 		qemu.ServeHTTP(s, ln),

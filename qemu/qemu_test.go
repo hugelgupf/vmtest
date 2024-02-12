@@ -19,9 +19,8 @@ import (
 	"time"
 
 	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/uroot"
-	"github.com/u-root/u-root/pkg/uroot/initramfs"
-	"github.com/u-root/uio/ulog/ulogtest"
+	"github.com/u-root/mkuimage/uimage"
+	"github.com/u-root/uio/llog"
 	"golang.org/x/exp/slices"
 )
 
@@ -274,28 +273,20 @@ func TestCmdline(t *testing.T) {
 }
 
 func TestStartVM(t *testing.T) {
+	logger := llog.Test(t)
 	tmp := t.TempDir()
-	logger := &ulogtest.Logger{TB: t}
 	initrdPath := filepath.Join(tmp, "initramfs.cpio")
-	initrdWriter, err := initramfs.CPIO.OpenWriter(logger, initrdPath)
-	if err != nil {
-		t.Fatalf("Failed to create initramfs writer: %v", err)
-	}
-
-	env := golang.Default(golang.DisableCGO(), golang.WithGOARCH(string(GuestArch())))
-
-	uopts := uroot.Opts{
-		Env:        env,
-		InitCmd:    "init",
-		UinitCmd:   "helloworld",
-		OutputFile: initrdWriter,
-		TempDir:    tmp,
-	}
-	uopts.AddBusyBoxCommands(
-		"github.com/u-root/u-root/cmds/core/init",
-		"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
-	)
-	if err := uroot.CreateInitramfs(logger, uopts); err != nil {
+	if err := uimage.Create(logger,
+		uimage.WithTempDir(tmp),
+		uimage.WithEnv(golang.DisableCGO(), golang.WithGOARCH(string(GuestArch()))),
+		uimage.WithBusyboxCommands(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+		),
+		uimage.WithInit("init"),
+		uimage.WithUinit("helloworld"),
+		uimage.WithCPIOOutput(initrdPath),
+	); err != nil {
 		t.Fatalf("error creating initramfs: %v", err)
 	}
 

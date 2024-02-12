@@ -7,13 +7,14 @@ toolchain go1.21.0
 require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/creack/pty v1.1.21
-	github.com/u-root/gobusybox/src v0.0.0-20231228173702-b69f654846aa
+	github.com/u-root/gobusybox/src v0.0.0-20240212035024-44ff0bf359ad
+	github.com/u-root/mkuimage v0.0.0-20240213021850-ae2ceee730a2
 	github.com/u-root/u-root v0.12.1-0.20240114161452-ab3534910ced
-	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63
+	github.com/u-root/uio v0.0.0-20240209044354-b3d14b93376a
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
-	golang.org/x/sync v0.5.0
-	golang.org/x/sys v0.15.0
-	golang.org/x/tools v0.16.1
+	golang.org/x/sync v0.6.0
+	golang.org/x/sys v0.16.0
+	golang.org/x/tools v0.17.0
 )
 
 require (
@@ -26,8 +27,7 @@ require (
 	github.com/containerd/console v1.0.4-0.20230706203907-8f6c4e4faef5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2 // indirect
-	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hugelgupf/go-shlex v0.0.0-20200702092117-c80c9d0918fa // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20231206064809-8c70d406f6d2 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
@@ -52,8 +52,8 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/net v0.20.0 // indirect
+	golang.org/x/term v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	pack.ag/tftp v1.0.1-0.20181129014014-07909dfbde3c // indirect

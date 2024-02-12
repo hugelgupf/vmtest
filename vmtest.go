@@ -10,17 +10,11 @@ package vmtest
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/hugelgupf/vmtest/uqemu"
-	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/uroot"
-	"github.com/u-root/uio/ulog/ulogtest"
-	"golang.org/x/exp/maps"
+	"github.com/u-root/mkuimage/uimage"
 	"golang.org/x/exp/slices"
 )
 
@@ -49,80 +43,7 @@ type VMOptions struct {
 	SharedDir string
 
 	// Initramfs is an optional u-root initramfs to build.
-	Initramfs *uroot.Opts
-}
-
-func mergeAndDedup(s, t []string) []string {
-	m := make(map[string]struct{})
-	for _, v := range s {
-		m[v] = struct{}{}
-	}
-	for _, v := range t {
-		m[v] = struct{}{}
-	}
-	return maps.Keys(m)
-}
-
-func mergeCommands(u, v []uroot.Commands) []uroot.Commands {
-	merged := u
-	for _, cmdsv := range v {
-		i := slices.IndexFunc(u, func(cmdsu uroot.Commands) bool {
-			return cmdsu.Builder == cmdsv.Builder
-		})
-		if i == -1 {
-			merged = append(merged, cmdsv)
-		} else {
-			u[i].Packages = mergeAndDedup(u[i].Packages, cmdsv.Packages)
-		}
-	}
-	return merged
-}
-
-// MergeInitramfs merges initramfs build options. Commands and files will be merged.
-func (v *VMOptions) MergeInitramfs(buildOpts uroot.Opts) error {
-	if buildOpts.BaseArchive != nil {
-		return fmt.Errorf("BaseArchive must not be set: not supporting BaseArchive merging in vmtest")
-	}
-	if buildOpts.UseExistingInit {
-		return fmt.Errorf("BaseArchive not supported in vmtest")
-	}
-	if v.Initramfs == nil {
-		o := buildOpts
-		v.Initramfs = &o
-		return nil
-	}
-
-	if buildOpts.Env != nil && v.Initramfs.Env != nil {
-		if n, o := buildOpts.Env.Env(), v.Initramfs.Env.Env(); !reflect.DeepEqual(n, o) {
-			return fmt.Errorf("merging two different u-root Go build envs not supported")
-		}
-	} else if v.Initramfs.Env == nil && buildOpts.Env != nil {
-		v.Initramfs.Env = buildOpts.Env
-	}
-
-	if v.Initramfs.TempDir != "" && buildOpts.TempDir != "" {
-		return fmt.Errorf("merging u-root initramfs temp dirs not supported")
-	} else if v.Initramfs.TempDir == "" && buildOpts.TempDir != "" {
-		v.Initramfs.TempDir = buildOpts.TempDir
-	}
-
-	v.Initramfs.Commands = mergeCommands(v.Initramfs.Commands, buildOpts.Commands)
-	v.Initramfs.ExtraFiles = append(v.Initramfs.ExtraFiles, buildOpts.ExtraFiles...)
-	// InitCmd, DefaultShell, UinitCmd, and UinitArgs are overridden.
-	if buildOpts.InitCmd != "" {
-		v.Initramfs.InitCmd = buildOpts.InitCmd
-	}
-	if buildOpts.UinitCmd != "" {
-		v.Initramfs.UinitCmd = buildOpts.UinitCmd
-		v.Initramfs.UinitArgs = buildOpts.UinitArgs
-	}
-	if buildOpts.DefaultShell != "" {
-		v.Initramfs.DefaultShell = buildOpts.DefaultShell
-	}
-	if buildOpts.BuildOpts != nil {
-		v.Initramfs.BuildOpts = buildOpts.BuildOpts
-	}
-	return nil
+	Initramfs []uimage.Modifier
 }
 
 // Opt is used to configure a VM.
@@ -156,10 +77,11 @@ func WithQEMUFn(fn ...qemu.Fn) Opt {
 	}
 }
 
-// WithMergedInitramfs merges o with already appended initramfs build options.
-func WithMergedInitramfs(o uroot.Opts) Opt {
+// WithUimage merges o with already appended initramfs build options.
+func WithUimage(mods ...uimage.Modifier) Opt {
 	return func(_ testing.TB, v *VMOptions) error {
-		return v.MergeInitramfs(o)
+		v.Initramfs = append(v.Initramfs, mods...)
+		return nil
 	}
 }
 
@@ -168,39 +90,18 @@ func WithMergedInitramfs(o uroot.Opts) Opt {
 // Note that busybox rewrites commands, so if attempting to get integration
 // test coverage of commands, use WithBinaryCommands.
 func WithBusyboxCommands(cmds ...string) Opt {
-	return func(_ testing.TB, v *VMOptions) error {
-		return v.MergeInitramfs(uroot.Opts{
-			Commands: uroot.BusyBoxCmds(cmds...),
-		})
-	}
+	return WithUimage(uimage.WithBusyboxCommands(cmds...))
 }
 
 // WithBinaryCommands merges more binary commands into the initramfs build options.
 func WithBinaryCommands(cmds ...string) Opt {
-	return func(_ testing.TB, v *VMOptions) error {
-		return v.MergeInitramfs(uroot.Opts{
-			Commands: uroot.BinaryCmds(cmds...),
-		})
-	}
+	return WithUimage(uimage.WithBinaryCommands(cmds...))
 }
 
 // WithInitramfsFiles merges more extra files into the initramfs build options.
 // Syntax is like u-root's ExtraFiles.
 func WithInitramfsFiles(files ...string) Opt {
-	return func(_ testing.TB, v *VMOptions) error {
-		return v.MergeInitramfs(uroot.Opts{
-			ExtraFiles: files,
-		})
-	}
-}
-
-// WithGoBuildOpts replaces Go build options for the initramfs.
-func WithGoBuildOpts(g *golang.BuildOpts) Opt {
-	return func(_ testing.TB, v *VMOptions) error {
-		return v.MergeInitramfs(uroot.Opts{
-			BuildOpts: g,
-		})
-	}
+	return WithUimage(uimage.WithFiles(files...))
 }
 
 // WithSharedDir shares a directory with the QEMU VM using 9P using the
@@ -260,14 +161,8 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 			qemu.WithAppendKernel("VMTEST_SHARED_DIR=tmpdir"),
 		)
 	}
-	if o.Initramfs != nil {
-		// When possible, make the initramfs available to the guest in
-		// the shared directory.
-		dir := o.SharedDir
-		if len(dir) == 0 {
-			dir = testtmp.TempDir(t)
-		}
-		qopts = append(qopts, uqemu.WithUrootInitramfs(&ulogtest.Logger{TB: t}, *o.Initramfs, filepath.Join(dir, "initramfs.cpio")))
+	if len(o.Initramfs) > 0 {
+		qopts = append(qopts, uqemu.WithUimageT(t, o.Initramfs...))
 	}
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.

@@ -19,7 +19,7 @@ import (
 	"github.com/hugelgupf/vmtest/qemu/qevent"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
-	"github.com/u-root/u-root/pkg/uroot"
+	"github.com/u-root/mkuimage/uimage"
 	"github.com/u-root/uio/cp"
 	"golang.org/x/tools/go/packages"
 )
@@ -181,28 +181,19 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	if goOpts.TestTimeout > 0 {
 		uinitArgs = append(uinitArgs, fmt.Sprintf("-test_timeout=%s", goOpts.TestTimeout))
 	}
-	initramfs := uroot.Opts{
-		Env: env,
-		Commands: append(
-			uroot.BusyBoxCmds(
-				"github.com/u-root/u-root/cmds/core/init",
-				"github.com/hugelgupf/vmtest/vminit/gouinit",
-			),
-			uroot.BinaryCmds("cmd/test2json")...),
-		InitCmd:   "init",
-		UinitCmd:  "gouinit",
-		UinitArgs: uinitArgs,
-		TempDir:   testtmp.TempDir(t),
-	}
-
-	qemuFns := []qemu.Fn{
-		qemu.P9Directory(sharedDir, "gotests"),
-	}
 	// Create the initramfs and start the VM.
 	vm := StartVM(t, append(
 		[]Opt{
-			WithMergedInitramfs(initramfs),
-			WithQEMUFn(qemuFns...),
+			WithUimage(
+				uimage.WithBusyboxCommands(
+					"github.com/u-root/u-root/cmds/core/init",
+					"github.com/hugelgupf/vmtest/vminit/gouinit",
+				),
+				uimage.WithBinaryCommands("cmd/test2json"),
+				uimage.WithInit("init"),
+				uimage.WithUinit("gouinit", uinitArgs...),
+			),
+			WithQEMUFn(qemu.P9Directory(sharedDir, "gotests")),
 			CollectKernelCoverage(),
 			ShareGOCOVERDIR(),
 		}, goOpts.VMOpts...)...)
