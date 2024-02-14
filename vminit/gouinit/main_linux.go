@@ -20,7 +20,6 @@ import (
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/internal/testevent"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -99,15 +98,7 @@ func runTest() error {
 }
 
 func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
-	cleanup, err := guest.MountSharedDir()
-	if err != nil {
-		return err
-	}
-	defer cleanup()
 	defer guest.CollectKernelCoverage()
-
-	covCleanup := guest.GOCOVERDIR()
-	defer covCleanup()
 
 	goTestEvents, err := guest.EventChannel[json2test.TestEvent]("/gotestdata/results.json")
 	if err != nil {
@@ -205,9 +196,5 @@ func main() {
 
 	if err := runTest(); err != nil {
 		log.Printf("Tests failed: %v", err)
-	}
-
-	if err := unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF); err != nil {
-		log.Fatalf("Failed to reboot: %v", err)
 	}
 }

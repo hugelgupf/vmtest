@@ -12,7 +12,9 @@ import (
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
+	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
+	"github.com/u-root/mkuimage/uimage/builder"
 )
 
 // RunCmdsInVM starts a VM and runs the given script using gosh in the guest.
@@ -58,10 +60,17 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
 				"github.com/u-root/u-root/cmds/core/gosh",
+				"github.com/hugelgupf/vmtest/vminit/shareduinit",
+			),
+			// Collect coverage of shelluinit.
+			uimage.WithCommands(&golang.BuildOpts{
+				ExtraArgs: []string{"-cover", "-covermode=atomic", "-coverpkg=github.com/hugelgupf/vmtest/..."},
+			}, builder.Binary,
 				"github.com/hugelgupf/vmtest/vminit/shelluinit",
 			),
 			uimage.WithInit("init"),
-			uimage.WithUinit("shelluinit"),
+			uimage.WithUinit("shareduinit"),
+			uimage.WithSymlink("bin/vminit", "shelluinit"),
 		),
 		CollectKernelCoverage(),
 		ShareGOCOVERDIR(),
