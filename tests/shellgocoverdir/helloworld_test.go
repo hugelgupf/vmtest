@@ -10,7 +10,6 @@ import (
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
-	"github.com/u-root/mkuimage/uimage/builder"
 )
 
 func TestStartVM(t *testing.T) {
@@ -31,9 +30,9 @@ func TestStartVM(t *testing.T) {
 
 			vmtest.RunCmdsInVM(t, script,
 				vmtest.WithUimage(
-					uimage.WithCommands(&golang.BuildOpts{
+					uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
 						ExtraArgs: []string{"-cover", "-coverpkg=all", "-covermode=atomic"},
-					}, builder.Binary,
+					},
 						"github.com/hugelgupf/vmtest/tests/cmds/donothing",
 					),
 				),
