@@ -205,7 +205,7 @@ func OptionsFor(arch Arch, fns ...Fn) (*Options, error) {
 	return o, nil
 }
 
-// Start starts a VM with the given configuration.
+// Start starts a QEMU VM and its associated task goroutines with the given config.
 //
 // SerialOutput will be relayed only if VM.Wait is also called some time after
 // the VM starts.
@@ -213,10 +213,13 @@ func Start(arch Arch, fns ...Fn) (*VM, error) {
 	return StartContext(context.Background(), arch, fns...)
 }
 
-// StartContext starts a VM with the given configuration and with the given context.
+// StartContext starts a QEMU VM and its associated task goroutines with the given config.
 //
 // When the context is done, the QEMU subprocess will be killed and all
 // associated goroutines cleaned up as long as VM.Wait() is called.
+//
+// SerialOutput will be relayed only if VM.Wait is also called some time after
+// the VM starts.
 func StartContext(ctx context.Context, arch Arch, fns ...Fn) (*VM, error) {
 	o, err := OptionsFor(arch, fns...)
 	if err != nil {
@@ -225,7 +228,7 @@ func StartContext(ctx context.Context, arch Arch, fns ...Fn) (*VM, error) {
 	return o.Start(ctx)
 }
 
-// StartT starts a VM with the given configuration.
+// StartT starts a QEMU VM and its associated task goroutines with the given config.
 //
 // Logs serial console to t.Logf using name as a prefix, with relative timestamps.
 //
@@ -233,6 +236,9 @@ func StartContext(ctx context.Context, arch Arch, fns ...Fn) (*VM, error) {
 // invocation for the VM is logged for reproduction. Also ensures that
 // vm.Wait() was called by the end of the test, as it is required to drain
 // console output.
+//
+// SerialOutput will be relayed only if VM.Wait is also called some time after
+// the VM starts.
 func StartT(t testing.TB, name string, arch Arch, fns ...Fn) *VM {
 	fns = append(fns,
 		LogSerialByLine(DefaultPrint(name, t.Logf)),
@@ -314,10 +320,13 @@ func (o *Options) AddFile(f *os.File) int {
 	return len(o.ExtraFiles) + 2
 }
 
-// Task is a task running alongside the guest.
+// A Task is a goroutine running alongside the guest.
 //
-// A task is expected to exit either when ctx is canceled or when the QEMU
-// subprocess exits.
+// Tasks are started before the guest process is started. A task is expected to
+// exit either when ctx is canceled or when the QEMU subprocess exits.
+//
+// VM.Wait waits for all tasks to finish after the guest process exits, and
+// returns their non-nil errors.
 type Task func(ctx context.Context, n *Notifications) error
 
 // WaitVMStarted waits until the VM has started before starting t, or never
@@ -331,6 +340,18 @@ func WaitVMStarted(t Task) Task {
 			return nil
 		}
 		return t(ctx, n)
+	}
+}
+
+// Cleanup adds a function to be run after the VM process exits. If the
+// function returns an error, Wait will return that error.
+func Cleanup(f func() error) Task {
+	return func(ctx context.Context, n *Notifications) error {
+		select {
+		case <-ctx.Done():
+		case <-n.VMExited:
+		}
+		return f()
 	}
 }
 
@@ -358,7 +379,13 @@ func (o *Options) Arch() Arch {
 	return o.arch
 }
 
-// Start starts a QEMU VM.
+// Start starts a QEMU VM and its associated task goroutines.
+//
+// When the context is done, the QEMU subprocess will be killed and all
+// associated goroutines cleaned up as long as VM.Wait() is called.
+//
+// SerialOutput will be relayed only if VM.Wait is also called some time after
+// the VM starts.
 func (o *Options) Start(ctx context.Context) (*VM, error) {
 	cmdline, err := o.Cmdline()
 	if err != nil {
@@ -557,7 +584,11 @@ func (v *VM) Waited() bool {
 	return v.waitCalled.Load()
 }
 
-// Wait waits for the VM to exit and expects EOF from the expect console.
+// Wait waits for the VM guest process to exit, drains serial console output,
+// and waits for any associated task to exit.
+//
+// If the guest process returned a non-zero exit status or any task returned an
+// error, Wait returns an error.
 func (v *VM) Wait() error {
 	v.waitCalled.Store(true)
 
