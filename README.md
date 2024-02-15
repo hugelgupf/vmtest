@@ -14,18 +14,24 @@ vmtest is a Go API for launching QEMU VMs.
     * running tasks (goroutines) bound to the VM process lifetime, and
     * using expect-scripting to check for outputs.
 
-* [The `uqemu` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/uqemu)
-  can be used to configure a u-root initramfs to be used as the boot root file
-  system.
+    * [`qnetwork`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qnetwork)
+      (WIP) is an API to QEMU network devices.
+    * [`qevent`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qevent)
+      provides a JSON-over-virtio-serial channel from guest to host.
 
-* [The `vmtest` package](https://pkg.go.dev/github.com/hugelgupf/vmtest)
+* [The `uqemu` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/uqemu)
+  can be used to configure a Go-based u-root initramfs to be used as the boot
+  root file system, including any arbitrary Go commands.
+
+* [The `vmtest` package](https://pkg.go.dev/github.com/hugelgupf/vmtest) (WIP)
   contains
 
-    * a `testing.TB` wrapper around the `qemu` API with some safe defaults
-      (logging serial console to `t.Logf`, etc)
     * an API for running shell scripts in the guest
-    * an API for running Go unit tests in the guest and collecting their
-      results.
+    * an API for running Go unit tests in the guest and collecting their test
+      coverage as well as results.
+    * A way to collect kernel test coverage from the guest,
+    * A way to collect [`GOCOVERDIR`-based](https://go.dev/doc/build-cover) Go
+      integration test coverage from the guest.
 
 Out of these, the `vmtest` API is still the most raw and being iterated on.
 
@@ -125,6 +131,30 @@ func TestStartVM(t *testing.T) {
     }
 }
 ```
+
+### Writing architecture-independent tests
+
+The recommendation for architecture-independent tests is to allow
+architecture-dependent values like `VMTEST_QEMU` and `VMTEST_KERNEL` be provided
+by `runvmtest` based on `VMTEST_ARCH`, while configuring everything else with
+the Go API.
+
+See e.g. [examples/archindependent](./examples/archindependent/vm_test.go).
+
+Run it with:
+
+```sh
+$ cd examples/archindependent
+$ VMTEST_ARCH=amd64 runvmtest -- go test -v
+$ VMTEST_ARCH=arm64 runvmtest -- go test -v
+$ VMTEST_ARCH=riscv64 runvmtest -- go test -v
+$ VMTEST_ARCH=arm runvmtest -- go test -v
+```
+
+They all should pass.
+
+Every test in this repository is written this way, as to test every feature on
+all architectures.
 
 ### Example: qemu API with u-root initramfs
 
