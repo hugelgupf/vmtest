@@ -20,7 +20,6 @@ import (
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
-	"github.com/u-root/mkuimage/uimage/builder"
 	"github.com/u-root/uio/cp"
 	"golang.org/x/tools/go/packages"
 )
@@ -191,9 +190,9 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 					"github.com/hugelgupf/vmtest/vminit/shareduinit",
 				),
 				// Collect coverage of gouinit.
-				uimage.WithCommands(&golang.BuildOpts{
+				uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
 					ExtraArgs: []string{"-cover", "-covermode=atomic", "-coverpkg=github.com/hugelgupf/vmtest/..."},
-				}, builder.Binary,
+				},
 					"github.com/hugelgupf/vmtest/vminit/gouinit",
 				),
 				uimage.WithBinaryCommands("cmd/test2json"),
