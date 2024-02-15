@@ -48,8 +48,8 @@ func (a *IDAllocator) ID(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, idx)
 }
 
-// ReadOnlyDirectory is a Device that exposes a directory as a /dev/sda1
-// readonly vfat partition in the VM.
+// ReadOnlyDirectory adds args that expose a directory as a /dev/sda1 readonly
+// vfat partition in the VM guest.
 func ReadOnlyDirectory(dir string) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
 		if len(dir) == 0 {
@@ -97,7 +97,7 @@ func IDEBlockDevice(file string) Fn {
 	}
 }
 
-// P9Directory is a Device that exposes a directory as a Plan9 (9p)
+// P9Directory adds QEMU args that expose a directory as a Plan9 (9p)
 // read-write filesystem in the VM.
 //
 // dir is the directory to expose as read-write 9p filesystem.
@@ -108,8 +108,8 @@ func P9Directory(dir string, tag string) Fn {
 	return p9Directory(dir, false, tag)
 }
 
-// P9BootDirectory is a Device that exposes a directory as a Plan9 (9p)
-// read-write filesystem in the VM.
+// P9BootDirectory adds QEMU args that expose a directory as a Plan9 (9p)
+// read-write filesystem in the VM as the boot device.
 //
 // The directory will be used as the root volume. There can only be one boot
 // 9pfs at a time. The tag used will be /dev/root, and kernel args will be
@@ -171,15 +171,22 @@ func p9Directory(dir string, boot bool, tag string) Fn {
 	}
 }
 
-// VirtioRandom is a Device that exposes a PCI random number generator to the
-// QEMU VM.
+// VirtioRandom adds QEMU args that expose a PCI random number generator to the
+// guest VM.
 func VirtioRandom() Fn {
 	return ArbitraryArgs("-device", "virtio-rng-pci")
 }
 
-// ArbitraryArgs is a Device that allows users to add arbitrary arguments to
-// the QEMU command line.
+// ArbitraryArgs adds arbitrary arguments to the QEMU command line.
 func ArbitraryArgs(aa ...string) Fn {
+	return func(alloc *IDAllocator, opts *Options) error {
+		opts.AppendQEMU(aa...)
+		return nil
+	}
+}
+
+// WithQEMUArgs adds arguments to the QEMU command line.
+func WithQEMUArgs(aa ...string) Fn {
 	return func(alloc *IDAllocator, opts *Options) error {
 		opts.AppendQEMU(aa...)
 		return nil
@@ -289,17 +296,6 @@ func PrintLine(printer func(fmt string, arg ...any)) LinePrinter {
 func Prefix(prefix string, printer LinePrinter) LinePrinter {
 	return func(line string) {
 		printer(fmt.Sprintf("%s: %s", prefix, line))
-	}
-}
-
-// Cleanup adds a function to be run after the VM process exits.
-func Cleanup(f func() error) Task {
-	return func(ctx context.Context, n *Notifications) error {
-		select {
-		case <-ctx.Done():
-		case <-n.VMExited:
-		}
-		return f()
 	}
 }
 
