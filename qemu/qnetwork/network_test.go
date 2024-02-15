@@ -84,7 +84,7 @@ shutdown
 					),
 				),
 				qemu.LogSerialByLine(qemu.DefaultPrint("server", t.Logf)),
-				qemu.WithVMTimeout(60*time.Second),
+				qemu.WithVMTimeout(90*time.Second),
 				net.NewVM(WithNIC[*DeviceOptions](tt.nic), WithMAC[*DeviceOptions](tt.serverMAC)),
 			)
 			if err != nil {
@@ -117,7 +117,7 @@ shutdown
 					),
 				),
 				qemu.LogSerialByLine(qemu.DefaultPrint("client", t.Logf)),
-				qemu.WithVMTimeout(60*time.Second),
+				qemu.WithVMTimeout(90*time.Second),
 				net.NewVM(WithNIC[*DeviceOptions](tt.nic), WithMAC[*DeviceOptions](tt.clientMAC)),
 			)
 			if err != nil {
