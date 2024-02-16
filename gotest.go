@@ -16,6 +16,7 @@ import (
 	"github.com/hugelgupf/vmtest/internal/json2test"
 	"github.com/hugelgupf/vmtest/internal/testevent"
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/qcoverage"
 	"github.com/hugelgupf/vmtest/qemu/qevent"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
@@ -200,9 +201,11 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 				uimage.WithInit("init"),
 				uimage.WithUinit("shutdownafter", append([]string{"--", "vmmount", "--", "gouinit"}, uinitArgs...)...),
 			),
-			WithQEMUFn(qemu.P9Directory(sharedDir, "gotestdata")),
-			CollectKernelCoverage(),
-			ShareGOCOVERDIR(),
+			WithQEMUFn(
+				qemu.P9Directory(sharedDir, "gotestdata"),
+				qcoverage.CollectKernelCoverage(t),
+				qcoverage.ShareGOCOVERDIR(),
+			),
 		}, goOpts.VMOpts...)...)
 
 	if err := vm.Wait(); err != nil {

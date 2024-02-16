@@ -198,8 +198,10 @@ func OptionsFor(arch Arch, fns ...Fn) (*Options, error) {
 
 	alloc := NewIDAllocator()
 	for _, f := range fns {
-		if err := f(alloc, o); err != nil {
-			return nil, err
+		if f != nil {
+			if err := f(alloc, o); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return o, nil

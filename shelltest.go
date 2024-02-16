@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/qcoverage"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
@@ -54,7 +55,11 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 	}
 
 	return StartVM(t, append([]Opt{
-		WithQEMUFn(qemu.P9Directory(sharedDir, "shelltest")),
+		WithQEMUFn(
+			qemu.P9Directory(sharedDir, "shelltest"),
+			qcoverage.CollectKernelCoverage(t),
+			qcoverage.ShareGOCOVERDIR(),
+		),
 		WithUimage(
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
@@ -71,7 +76,5 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 			uimage.WithInit("init"),
 			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "shelluinit"),
 		),
-		CollectKernelCoverage(),
-		ShareGOCOVERDIR(),
 	}, o...)...)
 }
