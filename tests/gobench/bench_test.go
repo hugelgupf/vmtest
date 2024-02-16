@@ -3,12 +3,12 @@ package bench
 import (
 	"testing"
 
-	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
 )
 
 func TestRunBenchmarkInVM(t *testing.T) {
-	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gobench"})
+	govmtest.Run(t, "vm", govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gobench"))
 }
 
 func fib(n int) int {

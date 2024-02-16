@@ -1,8 +1,10 @@
-// Copyright 2022 the u-root Authors. All rights reserved
+// Copyright 2024 the u-root Authors. All rights reserved
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package vmtest
+// Package govmtest is an API for running Go unit tests in the guest and
+// collecting their results and test coverage.
+package govmtest
 
 import (
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/qcoverage"
 	"github.com/hugelgupf/vmtest/qemu/qevent"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
@@ -87,46 +90,55 @@ func compileTestAndData(env *golang.Environ, pkg, destDir string, cover bool) er
 	return nil
 }
 
-// GoTestOptions is configuration for RunGoTestsInVM.
-type GoTestOptions struct {
-	VMOpts      []Opt
+// Options configures a Go test.
+type Options struct {
 	Packages    []string
+	QEMUOpts    []qemu.Fn
+	Initramfs   []uimage.Modifier
 	TestTimeout time.Duration
 }
 
-// GoTestOpt is a configurator for GoTestOptions.
-type GoTestOpt func(t testing.TB, o *GoTestOptions) error
+// Modifier is a configurator for Options.
+type Modifier func(t testing.TB, o *Options) error
 
-// WithVMOpt appends the VM configurators for use with Go tests.
-func WithVMOpt(opts ...Opt) GoTestOpt {
-	return func(t testing.TB, o *GoTestOptions) error {
-		o.VMOpts = append(o.VMOpts, opts...)
+// WithQEMUFn adds QEMU options.
+func WithQEMUFn(fn ...qemu.Fn) Modifier {
+	return func(_ testing.TB, o *Options) error {
+		o.QEMUOpts = append(o.QEMUOpts, fn...)
 		return nil
 	}
 }
 
-// AppendPackage adds additional packages to the test.
-func AppendPackage(pkgs ...string) GoTestOpt {
-	return func(t testing.TB, o *GoTestOptions) error {
+// WithUimage merges o with already appended initramfs build options.
+func WithUimage(mods ...uimage.Modifier) Modifier {
+	return func(_ testing.TB, o *Options) error {
+		o.Initramfs = append(o.Initramfs, mods...)
+		return nil
+	}
+}
+
+// WithPackageToTest adds additional packages to the test.
+func WithPackageToTest(pkgs ...string) Modifier {
+	return func(t testing.TB, o *Options) error {
 		o.Packages = append(o.Packages, pkgs...)
 		return nil
 	}
 }
 
 // WithGoTestTimeout sets a timeout for individual Go test binaries.
-func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
-	return func(t testing.TB, o *GoTestOptions) error {
+func WithGoTestTimeout(timeout time.Duration) Modifier {
+	return func(t testing.TB, o *Options) error {
 		o.TestTimeout = timeout
 		return nil
 	}
 }
 
-// RunGoTestsInVM compiles the tests found in pkgs and runs them in a QEMU VM
-// configured in options `o`. It collects the test results and provides a
+// Run compiles the tests added with WithPackageToTest and runs them in a QEMU
+// VM configured in options `o`. It collects the test results and provides a
 // pass/fail result of each individual test.
 //
-// RunGoTestsInVM runs tests and benchmarks, but not fuzz tests. Guest test
-// architecture can be set with VMTEST_ARCH.
+// Run runs tests and benchmarks, but not fuzz tests. Guest test architecture
+// can be set with VMTEST_ARCH.
 //
 // The test environment in the VM is very minimal. If a test depends on other
 // binaries or specific files to be present, they must be specified with
@@ -140,18 +152,19 @@ func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
 // via the VMTEST_GO_PROFILE env var.
 //
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
-func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
+func Run(t testing.TB, name string, mods ...Modifier) {
 	qemu.SkipWithoutQEMU(t)
 
-	goOpts := &GoTestOptions{
-		Packages: pkgs,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			if err := opt(t, goOpts); err != nil {
+	goOpts := &Options{}
+	for _, mod := range mods {
+		if mod != nil {
+			if err := mod(t, goOpts); err != nil {
 				t.Fatal(err)
 			}
 		}
+	}
+	if len(goOpts.Packages) == 0 {
+		t.Fatal("No packages specified for govmtest")
 	}
 
 	sharedDir := testtmp.TempDir(t)
@@ -182,30 +195,33 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 	if goOpts.TestTimeout > 0 {
 		uinitArgs = append(uinitArgs, fmt.Sprintf("-test_timeout=%s", goOpts.TestTimeout))
 	}
-	// Create the initramfs and start the VM.
-	vm := StartVM(t, append(
-		[]Opt{
-			WithUimage(
-				uimage.WithBusyboxCommands(
-					"github.com/u-root/u-root/cmds/core/init",
-					"github.com/hugelgupf/vmtest/vminit/shutdownafter",
-					"github.com/hugelgupf/vmtest/vminit/vmmount",
-				),
-				// Collect coverage of gouinit.
-				uimage.WithCoveredCommands(
-					"github.com/hugelgupf/vmtest/vminit/gouinit",
-				),
-				uimage.WithBinaryCommands("cmd/test2json"),
-				uimage.WithInit("init"),
-				uimage.WithUinit("shutdownafter", append([]string{"--", "vmmount", "--", "gouinit"}, uinitArgs...)...),
-			),
-			WithQEMUFn(
-				qemu.P9Directory(sharedDir, "gotestdata"),
-				qcoverage.CollectKernelCoverage(t),
-				qcoverage.ShareGOCOVERDIR(),
-			),
-		}, goOpts.VMOpts...)...)
 
+	umods := append([]uimage.Modifier{
+		uimage.WithBusyboxCommands(
+			"github.com/u-root/u-root/cmds/core/init",
+			"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+			"github.com/hugelgupf/vmtest/vminit/vmmount",
+		),
+		// Collect coverage of gouinit.
+		uimage.WithCoveredCommands(
+			"github.com/hugelgupf/vmtest/vminit/gouinit",
+		),
+		uimage.WithBinaryCommands("cmd/test2json"),
+		uimage.WithInit("init"),
+		uimage.WithUinit("shutdownafter", append([]string{"--", "vmmount", "--", "gouinit"}, uinitArgs...)...),
+	}, goOpts.Initramfs...)
+
+	// Create the initramfs and start the VM.
+	vm := qemu.StartT(t,
+		name,
+		qemu.ArchUseEnvv,
+		append([]qemu.Fn{
+			quimage.WithUimageT(t, umods...),
+			qemu.P9Directory(sharedDir, "gotestdata"),
+			qcoverage.CollectKernelCoverage(t),
+			qcoverage.ShareGOCOVERDIR(),
+			qemu.WithVmtestIdent(),
+		}, goOpts.QEMUOpts...)...)
 	if err := vm.Wait(); err != nil {
 		t.Errorf("VM exited with %v", err)
 	}

@@ -26,15 +26,12 @@ vmtest is a Go API for launching QEMU VMs.
       [`GOCOVERDIR`-based](https://go.dev/doc/build-cover) integration test
       coverage.
 
+* [The `govmtest` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/govmtest)
+  (WIP) contains an API for running Go unit tests in the guest and collecting
+  their test coverage as well as results.
 
-* [The `vmtest` package](https://pkg.go.dev/github.com/hugelgupf/vmtest) (WIP)
-  contains
-
-    * an API for running shell scripts in the guest
-    * an API for running Go unit tests in the guest and collecting their test
-      coverage as well as results.
-
-Out of these, the `vmtest` API is still the most raw and being iterated on.
+* [The `scriptvm` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/scriptvm)
+  (WIP) contains an API for running shell scripts in the guest.
 
 ## Running Tests
 
@@ -216,10 +213,6 @@ func TestStartVM(t *testing.T) {
     // ...
 }
 ```
-
-### Example: vmtest API
-
-See [tests/startexample](./tests/startexample/vm_test.go)
 
 ### Example: Go unit tests in VM
 

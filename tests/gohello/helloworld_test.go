@@ -3,7 +3,7 @@ package helloworld
 import (
 	"testing"
 
-	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/u-root/mkuimage/uimage"
@@ -12,18 +12,19 @@ import (
 func TestStartVM(t *testing.T) {
 	qemu.SkipWithoutQEMU(t)
 
-	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithVMOpt(
-		vmtest.WithUimage(
+	govmtest.Run(t, "vm",
+		govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gohello"),
+		govmtest.WithUimage(
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/dhclient",
 				"github.com/u-root/u-root/cmds/core/ls",
 				"github.com/u-root/u-root/cmds/core/false",
 			),
 		),
-		vmtest.WithQEMUFn(
+		govmtest.WithQEMUFn(
 			qemu.VirtioRandom(),
 		),
-	))
+	)
 }
 
 func TestHelloWorld(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hugelgupf/vmtest"
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/scriptvm"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
@@ -28,8 +28,8 @@ func TestStartVM(t *testing.T) {
 				t.Setenv("VMTEST_GOCOVERDIR", goCov)
 			}
 
-			vmtest.RunCmdsInVM(t, script,
-				vmtest.WithUimage(
+			scriptvm.Run(t, "vm", script,
+				scriptvm.WithUimage(
 					uimage.WithCoveredCommands(
 						"github.com/hugelgupf/vmtest/tests/cmds/donothing",
 					),

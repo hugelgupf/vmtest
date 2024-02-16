@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
@@ -25,7 +25,7 @@ func TestStartVM(t *testing.T) {
 	// Kernel coverage is copied to kcovDir during t.Cleanup, so induce it
 	// before the test is over by using a sub-test.
 	t.Run("test", func(t *testing.T) {
-		vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gokcov"})
+		govmtest.Run(t, "vm", govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gokcov"))
 	})
 
 	if _, err := os.Stat(filepath.Join(kcovDir, "TestStartVM", "test", "0", "kernel_coverage.tar")); err != nil {

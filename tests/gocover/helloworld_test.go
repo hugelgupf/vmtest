@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
@@ -33,7 +33,7 @@ func TestStartVM(t *testing.T) {
 	}
 
 	t.Run("test", func(t *testing.T) {
-		vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gocover"})
+		govmtest.Run(t, "vm", govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gocover"))
 	})
 
 	// Check VMTEST_GO_PROFILE coverage collected.

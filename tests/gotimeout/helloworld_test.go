@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/internal/failtesting"
 	"github.com/hugelgupf/vmtest/qemu"
 )
@@ -14,7 +14,10 @@ func TestStartVM(t *testing.T) {
 	qemu.SkipWithoutQEMU(t)
 
 	ft := &failtesting.TB{TB: t}
-	vmtest.RunGoTestsInVM(ft, []string{"github.com/hugelgupf/vmtest/tests/gotimeout"}, vmtest.WithGoTestTimeout(2*time.Second))
+	govmtest.Run(ft, "vm",
+		govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gotimeout"),
+		govmtest.WithGoTestTimeout(2*time.Second),
+	)
 
 	if !ft.HasFailed {
 		t.Error("Go VM test did not fail as expected.")
