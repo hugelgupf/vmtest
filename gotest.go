@@ -176,7 +176,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 
 	var uinitArgs []string
 	if len(vmCoverProfile) > 0 {
-		uinitArgs = append(uinitArgs, "-coverprofile=/gotestdata/coverage.profile")
+		uinitArgs = append(uinitArgs, "-coverprofile=/mount/9p/gotestdata/coverage.profile")
 	}
 	if goOpts.TestTimeout > 0 {
 		uinitArgs = append(uinitArgs, fmt.Sprintf("-test_timeout=%s", goOpts.TestTimeout))
@@ -187,7 +187,8 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 			WithUimage(
 				uimage.WithBusyboxCommands(
 					"github.com/u-root/u-root/cmds/core/init",
-					"github.com/hugelgupf/vmtest/vminit/shareduinit",
+					"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+					"github.com/hugelgupf/vmtest/vminit/vmmount",
 				),
 				// Collect coverage of gouinit.
 				uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
@@ -197,10 +198,9 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 				),
 				uimage.WithBinaryCommands("cmd/test2json"),
 				uimage.WithInit("init"),
-				uimage.WithUinit("shareduinit", uinitArgs...),
-				uimage.WithSymlink("bin/vminit", "gouinit"),
+				uimage.WithUinit("shutdownafter", append([]string{"--", "vmmount", "--", "gouinit"}, uinitArgs...)...),
 			),
-			WithQEMUFn(qemu.P9Directory(sharedDir, "gotests")),
+			WithQEMUFn(qemu.P9Directory(sharedDir, "gotestdata")),
 			CollectKernelCoverage(),
 			ShareGOCOVERDIR(),
 		}, goOpts.VMOpts...)...)

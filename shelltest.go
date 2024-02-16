@@ -59,7 +59,8 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
 				"github.com/u-root/u-root/cmds/core/gosh",
-				"github.com/hugelgupf/vmtest/vminit/shareduinit",
+				"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+				"github.com/hugelgupf/vmtest/vminit/vmmount",
 			),
 			// Collect coverage of shelluinit.
 			uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
@@ -68,8 +69,7 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 				"github.com/hugelgupf/vmtest/vminit/shelluinit",
 			),
 			uimage.WithInit("init"),
-			uimage.WithUinit("shareduinit"),
-			uimage.WithSymlink("bin/vminit", "shelluinit"),
+			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "shelluinit"),
 		),
 		CollectKernelCoverage(),
 		ShareGOCOVERDIR(),

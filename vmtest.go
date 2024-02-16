@@ -34,14 +34,6 @@ type VMOptions struct {
 	// QEMUOpts are options to the QEMU VM.
 	QEMUOpts []qemu.Fn
 
-	// SharedDir is a directory shared with the QEMU VM using 9P using the
-	// tag "tmpdir".
-	//
-	// guest.MountSharedDir mounts this directory at /testdata.
-	//
-	// If none is set, no directory is shared with the guest by default.
-	SharedDir string
-
 	// Initramfs is an optional u-root initramfs to build.
 	Initramfs []uimage.Modifier
 }
@@ -104,19 +96,6 @@ func WithInitramfsFiles(files ...string) Opt {
 	return WithUimage(uimage.WithFiles(files...))
 }
 
-// WithSharedDir shares a directory with the QEMU VM using 9P using the
-// tag "tmpdir".
-//
-// guest.MountSharedDir mounts this directory at /testdata.
-//
-// If none is set, no directory is shared with the guest by default.
-func WithSharedDir(dir string) Opt {
-	return func(_ testing.TB, v *VMOptions) error {
-		v.SharedDir = dir
-		return nil
-	}
-}
-
 // StartVM fills in some default options if not already provided, and starts a VM.
 //
 // StartVM uses a caller-supplied QEMU binary, architecture, kernel and
@@ -154,12 +133,6 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 		// Tests use this env var to identify they are running inside a
 		// vmtest using SkipIfNotInVM.
 		qemu.WithAppendKernel("VMTEST_IN_GUEST=1"),
-	}
-	if o.SharedDir != "" {
-		qopts = append(qopts,
-			qemu.P9Directory(o.SharedDir, "tmpdir"),
-			qemu.WithAppendKernel("VMTEST_SHARED_DIR=tmpdir"),
-		)
 	}
 	if len(o.Initramfs) > 0 {
 		qopts = append(qopts, uqemu.WithUimageT(t, o.Initramfs...))
