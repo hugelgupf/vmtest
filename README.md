@@ -94,7 +94,63 @@ Docker image with just QEMU binaries and their dependencies.
 
 ## Writing Tests
 
+### Architecture-independent test with shared directory
+
+The recommendation for architecture-independent tests is to allow
+architecture-dependent values like `VMTEST_QEMU` and `VMTEST_KERNEL` be provided
+by `runvmtest` based on `VMTEST_ARCH`, while configuring everything else with
+the Go API.
+
+See e.g. [examples/shareddir](./examples/shareddir/vm_test.go)
+
+Run it with:
+
+```sh
+$ cd examples/shareddir
+$ VMTEST_ARCH=amd64 runvmtest -- go test -v
+$ VMTEST_ARCH=arm64 runvmtest -- go test -v
+$ VMTEST_ARCH=riscv64 runvmtest -- go test -v
+$ VMTEST_ARCH=arm runvmtest -- go test -v
+```
+
+They all should pass.
+
+Every test in this repository is written this way to test every feature on all
+architectures.
+
+### Example: Go unit tests in VM
+
+See [tests/gobench](./tests/gobench/bench_test.go)
+
+### Example: qemu API with u-root initramfs
+
+```go
+func TestStartVM(t *testing.T) {
+    vm := qemu.StartT(
+        t,
+        "vm", // Prefix for t.Logf serial console lines.
+        qemu.ArchUseEnvv,
+        quimage.WithUimageT(t,
+                uimage.WithInit("init"),
+                uimage.WithUinit("shutdownafter", "--", "cat", "etc/thatfile"),
+                uimage.WithBusyboxCommands(
+                        "github.com/u-root/u-root/cmds/core/init",
+                        "github.com/u-root/u-root/cmds/core/cat",
+                        "github.com/hugelgupf/vmtest/vminit/shutdownafter",
+                ),
+                uimage.WithFiles("./testdata/foo:etc/thatfile"),
+        ),
+
+        // Other options...
+    )
+    // ...
+}
+```
+
 ### Example: qemu API
+
+The qemu API can be used without `testing.TB`, and any of the environment
+variables can be overridden in the Go API:
 
 ```go
 func TestStartVM(t *testing.T) {
@@ -130,59 +186,6 @@ func TestStartVM(t *testing.T) {
 }
 ```
 
-### Writing architecture-independent tests
-
-The recommendation for architecture-independent tests is to allow
-architecture-dependent values like `VMTEST_QEMU` and `VMTEST_KERNEL` be provided
-by `runvmtest` based on `VMTEST_ARCH`, while configuring everything else with
-the Go API.
-
-See e.g. [examples/archindependent](./examples/archindependent/vm_test.go).
-
-Run it with:
-
-```sh
-$ cd examples/archindependent
-$ VMTEST_ARCH=amd64 runvmtest -- go test -v
-$ VMTEST_ARCH=arm64 runvmtest -- go test -v
-$ VMTEST_ARCH=riscv64 runvmtest -- go test -v
-$ VMTEST_ARCH=arm runvmtest -- go test -v
-```
-
-They all should pass.
-
-Every test in this repository is written this way, as to test every feature on
-all architectures.
-
-### Example: qemu API with u-root initramfs
-
-```go
-func TestStartVM(t *testing.T) {
-    vm := qemu.StartT(
-        t,
-        "vm", // Prefix for t.Logf serial console lines.
-        qemu.ArchUseEnvv,
-        quimage.WithUimageT(t,
-                uimage.WithInit("init"),
-                uimage.WithUinit("shutdownafter", "--", "cat", "etc/thatfile"),
-                uimage.WithBusyboxCommands(
-                        "github.com/u-root/u-root/cmds/core/init",
-                        "github.com/u-root/u-root/cmds/core/cat",
-                        "github.com/hugelgupf/vmtest/vminit/shutdownafter",
-                ),
-                uimage.WithFiles("./testdata/foo:etc/thatfile"),
-        ),
-
-        // Other options...
-    )
-    // ...
-}
-```
-
-### Example: shared directory
-
-See [examples/shareddir](./examples/shareddir/vm_test.go)
-
 ### Example: Tasks
 
 ```go
@@ -213,10 +216,6 @@ func TestStartVM(t *testing.T) {
     // ...
 }
 ```
-
-### Example: Go unit tests in VM
-
-See [tests/gobench](./tests/gobench/bench_test.go)
 
 ## Custom runvmtest configuration
 
