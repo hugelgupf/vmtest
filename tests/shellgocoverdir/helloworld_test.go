@@ -31,14 +31,14 @@ func TestStartVM(t *testing.T) {
 			vmtest.RunCmdsInVM(t, script,
 				vmtest.WithUimage(
 					uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
-						ExtraArgs: []string{"-cover", "-coverpkg=all", "-covermode=atomic"},
+						ExtraArgs: []string{"-cover", "-covermode=atomic"},
 					},
 						"github.com/hugelgupf/vmtest/tests/cmds/donothing",
 					),
-				),
-				vmtest.WithBusyboxCommands(
-					"github.com/u-root/u-root/cmds/core/sync",
-					"github.com/u-root/u-root/cmds/core/shutdown",
+					uimage.WithBusyboxCommands(
+						"github.com/u-root/u-root/cmds/core/sync",
+						"github.com/u-root/u-root/cmds/core/shutdown",
+					),
 				),
 			)
 

@@ -75,25 +75,6 @@ func WithUimage(mods ...uimage.Modifier) Opt {
 	}
 }
 
-// WithBusyboxCommands merges more busybox commands into the initramfs build options.
-//
-// Note that busybox rewrites commands, so if attempting to get integration
-// test coverage of commands, use WithBinaryCommands.
-func WithBusyboxCommands(cmds ...string) Opt {
-	return WithUimage(uimage.WithBusyboxCommands(cmds...))
-}
-
-// WithBinaryCommands merges more binary commands into the initramfs build options.
-func WithBinaryCommands(cmds ...string) Opt {
-	return WithUimage(uimage.WithBinaryCommands(cmds...))
-}
-
-// WithInitramfsFiles merges more extra files into the initramfs build options.
-// Syntax is like u-root's ExtraFiles.
-func WithInitramfsFiles(files ...string) Opt {
-	return WithUimage(uimage.WithFiles(files...))
-}
-
 // StartVM fills in some default options if not already provided, and starts a VM.
 //
 // StartVM uses a caller-supplied QEMU binary, architecture, kernel and
