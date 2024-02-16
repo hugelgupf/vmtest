@@ -13,7 +13,6 @@ import (
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/qemu/qcoverage"
 	"github.com/hugelgupf/vmtest/testtmp"
-	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
 )
 
@@ -68,9 +67,7 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 				"github.com/hugelgupf/vmtest/vminit/vmmount",
 			),
 			// Collect coverage of shelluinit.
-			uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
-				ExtraArgs: []string{"-cover", "-covermode=atomic"},
-			},
+			uimage.WithCoveredCommands(
 				"github.com/hugelgupf/vmtest/vminit/shelluinit",
 			),
 			uimage.WithInit("init"),

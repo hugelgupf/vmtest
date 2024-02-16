@@ -123,8 +123,8 @@ github.com/stretchr/testify v1.7.1 h1:5TQK59W5E3v0r2duFAb7P95B6hEeOyEnHRa8MjYSMT
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/u-root/gobusybox/src v0.0.0-20240212035024-44ff0bf359ad h1:lUSEFqsEuc+c+sTI5jVEC0wWw0FOuXZbrYGZbxQL19E=
 github.com/u-root/gobusybox/src v0.0.0-20240212035024-44ff0bf359ad/go.mod h1:vN1IwhlCo7gTDTJDUs6WCKM4/C2uiq5w0XvZCqLtb5s=
-github.com/u-root/mkuimage v0.0.0-20240215050749-e3faa6af46f7 h1:1vVKPP2DEicYZLiXNT8IwqeheCQFxVMb2at1kqeBjls=
-github.com/u-root/mkuimage v0.0.0-20240215050749-e3faa6af46f7/go.mod h1:04Id/CtMh7fm3TB2crUokz9qNhn7q8Qturr4k0teSDI=
+github.com/u-root/mkuimage v0.0.0-20240216050315-5f527d1fae2e h1:KRdkURI+8KMNx+3XxTIFFpgTchYUaptp40Vq0wBaQE8=
+github.com/u-root/mkuimage v0.0.0-20240216050315-5f527d1fae2e/go.mod h1:04Id/CtMh7fm3TB2crUokz9qNhn7q8Qturr4k0teSDI=
 github.com/u-root/u-root v0.12.1-0.20240114161452-ab3534910ced h1:G0F7Hmwph1OjozbAUBLKJ94CmY1OlH1cGMydXgB24j0=
 github.com/u-root/u-root v0.12.1-0.20240114161452-ab3534910ced/go.mod h1:jtkuv6BVn5jo/WAHgQ1k9XfzHEe1hZmq9yDUvbgL+Iw=
 github.com/u-root/uio v0.0.0-20240209044354-b3d14b93376a h1:BH1SOPEvehD2kVrndDnGJiUF0TrBpNs+iyYocu6h0og=
