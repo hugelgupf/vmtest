@@ -221,7 +221,7 @@ shutdown
 				),
 				qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 				qemu.WithVMTimeout(60*time.Second),
-				qemu.ServeHTTP(s, ln),
+				ServeHTTP(s, ln),
 				IPv4HostNetwork("192.168.0.0/24", WithNIC[*UserOptions](tt.nic), WithMAC[*UserOptions](tt.clientMAC), WithUserArg("domainname=osfw.dev")),
 			)
 			if err != nil {
@@ -300,7 +300,7 @@ shutdown
 		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.WithVMTimeout(60*time.Second),
-		qemu.ServeHTTP(s, ln),
+		ServeHTTP(s, ln),
 		IPv4HostNetwork("192.168.0.0/24", WithPCAP[*UserOptions](pcap)),
 	)
 	if err != nil {

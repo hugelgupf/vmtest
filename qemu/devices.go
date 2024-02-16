@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -222,28 +220,6 @@ func replaceCtl(str []byte) []byte {
 		}
 	}
 	return str
-}
-
-// ServeHTTP serves s on l until the VM guest exits.
-func ServeHTTP(s *http.Server, l net.Listener) Fn {
-	return func(alloc *IDAllocator, opts *Options) error {
-		opts.Tasks = append(opts.Tasks, func(ctx context.Context, n *Notifications) error {
-			if err := s.Serve(l); !errors.Is(err, http.ErrServerClosed) {
-				return err
-			}
-			return nil
-		})
-		opts.Tasks = append(opts.Tasks, func(ctx context.Context, n *Notifications) error {
-			// Wait for VM exit.
-			select {
-			case <-n.VMExited:
-			case <-ctx.Done():
-			}
-			// Stop HTTP server.
-			return s.Close()
-		})
-		return nil
-	}
 }
 
 // LinePrinter prints one line to some output.

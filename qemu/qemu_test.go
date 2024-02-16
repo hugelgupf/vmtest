@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -499,24 +497,6 @@ func TestStartFailsExtraFile(t *testing.T) {
 	}
 	if !errors.Is(ioErr, io.EOF) && ioErr != nil {
 		t.Error("Error: task should have been unblocked by closing of serial output")
-	}
-}
-
-func TestStartFailsServeHTTP(t *testing.T) {
-	ln, err := net.Listen("tcp", ":0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := &http.Server{}
-
-	// Test that we do not block forever. Both tasks added by ServeHTTP
-	// should unblock.
-	_, err = Start(ArchAMD64,
-		WithQEMUCommand("does-not-exist"),
-		ServeHTTP(s, ln),
-	)
-	if !errors.Is(err, exec.ErrNotFound) {
-		t.Fatalf("Failed to start VM: %v", err)
 	}
 }
 
