@@ -164,10 +164,11 @@ func TestStartVM(t *testing.T) {
         qemu.ArchUseEnvv,
         uqemu.WithUimageT(t,
                 uimage.WithInit("init"),
-                uimage.WithUinit("cat", "etc/thatfile"),
+                uimage.WithUinit("shutdownafter", "--", "cat", "etc/thatfile"),
                 uimage.WithBusyboxCommands(
                         "github.com/u-root/u-root/cmds/core/init",
                         "github.com/u-root/u-root/cmds/core/cat",
+                        "github.com/hugelgupf/vmtest/vminit/shutdownafter",
                 ),
                 uimage.WithFiles("./testdata/foo:etc/thatfile"),
         ),
@@ -177,6 +178,10 @@ func TestStartVM(t *testing.T) {
     // ...
 }
 ```
+
+### Example: shared directory
+
+See [examples/shareddir](./examples/shareddir/vm_test.go)
 
 ### Example: Tasks
 

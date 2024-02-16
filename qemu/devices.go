@@ -104,6 +104,12 @@ func IDEBlockDevice(file string) Fn {
 //
 // tag is an identifier that is used within the VM when mounting an fs, e.g.
 // 'mount -t 9p my-vol-ident mountpoint'. The tag must be unique for each dir.
+//
+// P9Directory will add a kernel cmdline argument in the style of
+// VMTEST_MOUNT9P_$qemuID=$tag. Likely this is only useful on Linux. The
+// vmmount command in vminit/vmmount can be used to mount 9P directories passed
+// to the VM this way at /mount/9p/$tag in the guest. See the example in
+// ./examples/shareddir.
 func P9Directory(dir string, tag string) Fn {
 	return p9Directory(dir, false, tag)
 }
@@ -112,8 +118,8 @@ func P9Directory(dir string, tag string) Fn {
 // read-write filesystem in the VM as the boot device.
 //
 // The directory will be used as the root volume. There can only be one boot
-// 9pfs at a time. The tag used will be /dev/root, and kernel args will be
-// appended to mount it as the root file system.
+// 9pfs at a time. The tag used will be /dev/root, and Linux kernel args will
+// be appended to mount it as the root file system.
 func P9BootDirectory(dir string) Fn {
 	return p9Directory(dir, true, "/dev/root")
 }
@@ -166,6 +172,8 @@ func p9Directory(dir string, boot bool, tag string) Fn {
 				"rootfstype=9p",
 				"rootflags=trans=virtio,version=9p2000.L",
 			)
+		} else {
+			opts.AppendKernel(fmt.Sprintf("VMTEST_MOUNT9P_%s=%s", id, tag))
 		}
 		return nil
 	}

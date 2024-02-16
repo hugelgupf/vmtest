@@ -74,15 +74,7 @@ func AppendFile(srcFile, targetFile string) error {
 func runTest() error {
 	flag.Parse()
 
-	// If these fail, the host will be missing the "Done" event from
-	// testEvents, or possibly even the errors.json file and fail.
-	mp, err := guest.Mount9PDir("/gotestdata", "gotests")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = mp.Unmount(0) }()
-
-	testEvents, err := guest.EventChannel[testevent.ErrorEvent]("/gotestdata/errors.json")
+	testEvents, err := guest.EventChannel[testevent.ErrorEvent]("/mount/9p/gotestdata/errors.json")
 	if err != nil {
 		return err
 	}
@@ -100,13 +92,13 @@ func runTest() error {
 func run(testEvents *guest.Emitter[testevent.ErrorEvent]) error {
 	defer guest.CollectKernelCoverage()
 
-	goTestEvents, err := guest.EventChannel[json2test.TestEvent]("/gotestdata/results.json")
+	goTestEvents, err := guest.EventChannel[json2test.TestEvent]("/mount/9p/gotestdata/results.json")
 	if err != nil {
 		return err
 	}
 	defer goTestEvents.Close()
 
-	return walkTests("/gotestdata/tests", func(path, pkgName string) {
+	return walkTests("/mount/9p/gotestdata/tests", func(path, pkgName string) {
 		// Send the kill signal with a 500ms grace period.
 		ctx, cancel := context.WithTimeout(context.Background(), *individualTestTimeout+500*time.Millisecond)
 		defer cancel()

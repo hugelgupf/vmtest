@@ -21,14 +21,17 @@ func TestStart(t *testing.T) {
 		vmtest.WithUimage(
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
-				"github.com/u-root/u-root/cmds/core/ls",
-				"github.com/hugelgupf/vmtest/tests/cmds/catfile",
+				"github.com/u-root/u-root/cmds/core/cat",
+				"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+				"github.com/hugelgupf/vmtest/vminit/vmmount",
 			),
 			uimage.WithInit("init"),
-			uimage.WithUinit("catfile", "-file", "/testdata/hello"),
+			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "cat", "/mount/9p/testdir/hello"),
 		),
-		vmtest.WithSharedDir(dir),
-		vmtest.WithQEMUFn(qemu.WithVMTimeout(time.Minute)),
+		vmtest.WithQEMUFn(
+			qemu.WithVMTimeout(time.Minute),
+			qemu.P9Directory(dir, "testdir"),
+		),
 	)
 	if _, err := vm.Console.ExpectString("Hello world"); err != nil {
 		t.Error(err)

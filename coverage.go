@@ -17,7 +17,8 @@ import (
 // ShareGOCOVERDIR shares VMTEST_GOCOVERDIR with the guest if it's available in the
 // environment.
 //
-// Call guest.GOCOVERDIR to set up the directory in the guest.
+// Use the vmmount command to mount the directory before calling any commands
+// that should have GOCOVERDIR coverage.
 func ShareGOCOVERDIR() Opt {
 	return func(t testing.TB, v *VMOptions) error {
 		goCov := os.Getenv("VMTEST_GOCOVERDIR")
@@ -26,7 +27,7 @@ func ShareGOCOVERDIR() Opt {
 		}
 		v.QEMUOpts = append(v.QEMUOpts,
 			qemu.P9Directory(goCov, "gocov"),
-			qemu.WithAppendKernel("VMTEST_GOCOVERDIR=gocov"),
+			qemu.WithAppendKernel("GOCOVERDIR=/mount/9p/gocov"),
 		)
 		return nil
 	}
@@ -51,7 +52,6 @@ func CollectKernelCoverage() Opt {
 		sharedDir := testtmp.TempDir(t)
 		v.QEMUOpts = append(v.QEMUOpts,
 			qemu.P9Directory(sharedDir, "kcoverage"),
-			qemu.WithAppendKernel("VMTEST_KCOVERAGE_TAG=kcoverage"),
 			qemu.WithTask(qemu.Cleanup(func() error {
 				if err := saveCoverage(t, filepath.Join(sharedDir, "kernel_coverage.tar"), coverageDir); err != nil {
 					return fmt.Errorf("error saving kernel coverage: %v", err)
