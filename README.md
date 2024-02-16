@@ -18,6 +18,10 @@ vmtest is a Go API for launching QEMU VMs.
       (WIP) is an API to QEMU network devices.
     * [`qevent`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qevent)
       provides a JSON-over-virtio-serial channel from guest to host.
+    * [`qcoverage`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qcoverage)
+      adds utilities to collect kernel & Go
+      [`GOCOVERDIR`-based](https://go.dev/doc/build-cover) integration test
+      coverage.
 
 * [The `uqemu` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/uqemu)
   can be used to configure a Go-based u-root initramfs to be used as the boot
@@ -29,9 +33,6 @@ vmtest is a Go API for launching QEMU VMs.
     * an API for running shell scripts in the guest
     * an API for running Go unit tests in the guest and collecting their test
       coverage as well as results.
-    * A way to collect kernel test coverage from the guest,
-    * A way to collect [`GOCOVERDIR`-based](https://go.dev/doc/build-cover) Go
-      integration test coverage from the guest.
 
 Out of these, the `vmtest` API is still the most raw and being iterated on.
 
