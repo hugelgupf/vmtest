@@ -18,7 +18,7 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	goProfile := os.Getenv("VMTEST_GO_PROFILE")
 	if goProfile == "" {

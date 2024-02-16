@@ -5,10 +5,11 @@ import (
 
 	"github.com/hugelgupf/vmtest"
 	"github.com/hugelgupf/vmtest/internal/failtesting"
+	"github.com/hugelgupf/vmtest/qemu"
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	ft := &failtesting.TB{TB: t}
 	vmtest.RunCmdsInVM(ft, "false", vmtest.WithBusyboxCommands("github.com/u-root/u-root/cmds/core/false"))

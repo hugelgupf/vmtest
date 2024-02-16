@@ -9,13 +9,11 @@ package vmtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/mkuimage/uimage"
-	"golang.org/x/exp/slices"
 )
 
 // VMOptions are QEMU VM integration test options.
@@ -127,7 +125,7 @@ func StartVM(t testing.TB, opts ...Opt) *qemu.VM {
 }
 
 func startVM(t testing.TB, o *VMOptions) *qemu.VM {
-	SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	qopts := []qemu.Fn{
 		// Tests use this env var to identify they are running inside a
@@ -140,19 +138,4 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.
 	return qemu.StartT(t, o.Name, o.GuestArch, append(qopts, o.QEMUOpts...)...)
-}
-
-// SkipWithoutQEMU skips the test when the QEMU environment variable is not
-// set.
-func SkipWithoutQEMU(t testing.TB) {
-	if _, ok := os.LookupEnv("VMTEST_QEMU"); !ok {
-		t.Skip("QEMU vmtest is skipped unless VMTEST_QEMU is set")
-	}
-}
-
-// SkipIfNotArch skips this test if VMTEST_ARCH is not one of the given values.
-func SkipIfNotArch(t testing.TB, allowed ...qemu.Arch) {
-	if arch := qemu.GuestArch(); !slices.Contains(allowed, arch) {
-		t.Skipf("Skipping test because arch is %s, not in allowed set %v", arch, allowed)
-	}
 }

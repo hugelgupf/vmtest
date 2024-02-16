@@ -13,7 +13,7 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	for _, script := range []string{
 		"donothing",

@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest"
+	"github.com/hugelgupf/vmtest/qemu"
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	vmtest.RunCmdsInVM(t, `echo "Hello World"`)
 }

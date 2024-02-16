@@ -9,7 +9,7 @@ import (
 )
 
 func TestStartVM(t *testing.T) {
-	vmtest.SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	vmtest.RunGoTestsInVM(t, []string{"github.com/hugelgupf/vmtest/tests/gohello"}, vmtest.WithVMOpt(
 		vmtest.WithBusyboxCommands(

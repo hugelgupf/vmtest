@@ -42,7 +42,7 @@ func RunCmdsInVM(t testing.TB, script string, o ...Opt) {
 //
 // The VM can be configured with o.
 func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
-	SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	sharedDir := testtmp.TempDir(t)
 
