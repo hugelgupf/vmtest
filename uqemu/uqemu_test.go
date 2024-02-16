@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -49,33 +48,19 @@ func replaceCtl(str []byte) []byte {
 }
 
 func TestStartVM(t *testing.T) {
-	r, w := io.Pipe()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s := bufio.NewScanner(r)
-		for s.Scan() {
-			t.Logf("vm: %s", replaceCtl(s.Bytes()))
-		}
-		if err := s.Err(); err != nil {
-			t.Errorf("Error reading serial from VM: %v", err)
-		}
-	}()
-
-	vm, err := qemu.Start(qemu.ArchUseEnvv, qemu.WithSerialOutput(w), WithUimageT(t,
-		uimage.WithInit("init"),
-		uimage.WithUinit("helloworld"),
-		uimage.WithBusyboxCommands(
-			"github.com/u-root/u-root/cmds/core/init",
-			"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+	vm := qemu.StartT(
+		t,
+		"vm",
+		qemu.ArchUseEnvv,
+		WithUimageT(t,
+			uimage.WithInit("init"),
+			uimage.WithUinit("helloworld"),
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
+			),
 		),
-	))
-	if err != nil {
-		t.Fatalf("Failed to start VM: %v", err)
-	}
-	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
+	)
 
 	if _, err := vm.Console.ExpectString("Hello world"); err != nil {
 		t.Errorf("Error expecting Hello world: %v", err)
@@ -84,7 +69,6 @@ func TestStartVM(t *testing.T) {
 	if err := vm.Wait(); err != nil {
 		t.Fatalf("Error waiting for VM to exit: %v", err)
 	}
-	wg.Wait()
 }
 
 func TestTask(t *testing.T) {
@@ -167,7 +151,9 @@ func TestTask(t *testing.T) {
 // Tests that we do not hang forever when HaltOnKernelPanic is passed.
 func TestKernelPanic(t *testing.T) {
 	// init exits after not finding anything to do, so kernel panics.
-	vm, err := qemu.Start(
+	vm := qemu.StartT(
+		t,
+		"vm",
 		qemu.ArchUseEnvv,
 		WithUimageT(t,
 			uimage.WithInit("init"),
@@ -175,13 +161,8 @@ func TestKernelPanic(t *testing.T) {
 				"github.com/u-root/u-root/cmds/core/init",
 			),
 		),
-		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		qemu.HaltOnKernelPanic(),
 	)
-	if err != nil {
-		t.Fatalf("Failed to start VM: %v", err)
-	}
-	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
 
 	if _, err := vm.Console.ExpectString("Kernel panic"); err != nil {
 		t.Errorf("Expect(Kernel panic) = %v", err)
@@ -281,7 +262,9 @@ func TestInvalidInitramfs(t *testing.T) {
 func TestOutputFillsConsoleBuffers(t *testing.T) {
 	// 4000 repeats of Hello world fill the buffer of the pty used by the
 	// Expect library. Make sure this does not cause hangs.
-	vm, err := qemu.Start(
+	vm := qemu.StartT(
+		t,
+		"vm",
 		qemu.ArchUseEnvv,
 		WithUimageT(t,
 			uimage.WithInit("init"),
@@ -291,12 +274,7 @@ func TestOutputFillsConsoleBuffers(t *testing.T) {
 				"github.com/hugelgupf/vmtest/tests/cmds/helloworld",
 			),
 		),
-		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 	)
-	if err != nil {
-		t.Fatalf("Failed to start VM: %v", err)
-	}
-	t.Logf("cmdline: %#v", vm.CmdlineQuoted())
 
 	// No calls to Expect means nothing is draining the Console pty buffer.
 
