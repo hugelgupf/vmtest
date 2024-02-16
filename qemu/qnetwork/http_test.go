@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/u-root/mkuimage/uimage"
 )
 
@@ -41,7 +41,7 @@ func TestHTTPTask(t *testing.T) {
 		t,
 		"vm",
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			uimage.WithUinit("httpdownload", "-url", fmt.Sprintf("http://192.168.0.2:%d/foobar", port)),
 			uimage.WithBusyboxCommands(

@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
-	"github.com/hugelgupf/vmtest/uqemu"
 	"github.com/u-root/mkuimage/uimage"
 	"golang.org/x/sys/unix"
 )
@@ -21,7 +21,7 @@ func TestEventChannel(t *testing.T) {
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			uimage.WithUinit("eventemitter"),
 			uimage.WithBusyboxCommands(
@@ -62,7 +62,7 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 	events := make(chan event.Event)
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			// Instruct eventemitter not to close the event channel.
 			uimage.WithUinit("eventemitter", "-skip-close"),
@@ -100,7 +100,7 @@ func TestEventChannelCallback(t *testing.T) {
 	var events []event.Event
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			uimage.WithUinit("eventemitter"),
 			uimage.WithBusyboxCommands(
