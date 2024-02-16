@@ -193,7 +193,7 @@ func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
 				),
 				// Collect coverage of gouinit.
 				uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
-					ExtraArgs: []string{"-cover", "-covermode=atomic", "-coverpkg=github.com/hugelgupf/vmtest/..."},
+					ExtraArgs: []string{"-cover", "-covermode=atomic"},
 				},
 					"github.com/hugelgupf/vmtest/vminit/gouinit",
 				),

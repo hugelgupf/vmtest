@@ -69,7 +69,7 @@ func StartVMAndRunCmds(t testing.TB, script string, o ...Opt) *qemu.VM {
 			),
 			// Collect coverage of shelluinit.
 			uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
-				ExtraArgs: []string{"-cover", "-covermode=atomic", "-coverpkg=github.com/hugelgupf/vmtest/..."},
+				ExtraArgs: []string{"-cover", "-covermode=atomic"},
 			},
 				"github.com/hugelgupf/vmtest/vminit/shelluinit",
 			),
