@@ -30,9 +30,7 @@ func TestStartVM(t *testing.T) {
 
 			vmtest.RunCmdsInVM(t, script,
 				vmtest.WithUimage(
-					uimage.WithBinaryCommandsOpts(&golang.BuildOpts{
-						ExtraArgs: []string{"-cover", "-covermode=atomic"},
-					},
+					uimage.WithCoveredCommands(
 						"github.com/hugelgupf/vmtest/tests/cmds/donothing",
 					),
 					uimage.WithBusyboxCommands(

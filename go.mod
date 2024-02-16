@@ -8,7 +8,7 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/creack/pty v1.1.21
 	github.com/u-root/gobusybox/src v0.0.0-20240212035024-44ff0bf359ad
-	github.com/u-root/mkuimage v0.0.0-20240215050749-e3faa6af46f7
+	github.com/u-root/mkuimage v0.0.0-20240216050315-5f527d1fae2e
 	github.com/u-root/u-root v0.12.1-0.20240114161452-ab3534910ced
 	github.com/u-root/uio v0.0.0-20240209044354-b3d14b93376a
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
