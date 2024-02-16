@@ -3,12 +3,12 @@ package helloworld
 import (
 	"testing"
 
-	"github.com/hugelgupf/vmtest"
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/scriptvm"
 )
 
 func TestStartVM(t *testing.T) {
 	qemu.SkipWithoutQEMU(t)
 
-	vmtest.RunCmdsInVM(t, `echo "Hello World"`)
+	scriptvm.Run(t, "vm", `echo "Hello World"`)
 }

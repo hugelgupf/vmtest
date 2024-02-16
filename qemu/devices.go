@@ -328,3 +328,11 @@ func All(fn ...Fn) Fn {
 		return nil
 	}
 }
+
+// WithVmtestIdent adds VMTEST_IN_GUEST=1 to kernel commmand-line.
+//
+// Tests may use this env var to identify they are running inside a vmtest
+// using guest.SkipIfNotInVM or guest.SkipIfInVM.
+func WithVmtestIdent() Fn {
+	return WithAppendKernel("VMTEST_IN_GUEST=1")
+}

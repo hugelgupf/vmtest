@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hugelgupf/vmtest/internal/failtesting"
 	"github.com/u-root/gobusybox/src/pkg/golang"
 	"github.com/u-root/mkuimage/uimage"
 	"github.com/u-root/uio/llog"
@@ -548,5 +549,21 @@ func TestWaitTwice(t *testing.T) {
 
 	if err := vm.Wait(); !errors.Is(err, errFoo) {
 		t.Fatalf("Wait = %v, want %v", err, errFoo)
+	}
+}
+
+func TestStartTNotWait(t *testing.T) {
+	var ft *failtesting.TB
+	var vm *VM
+	t.Run("test", func(t *testing.T) {
+		ft = &failtesting.TB{TB: t}
+		vm = StartT(ft, "vm", ArchUseEnvv, WithQEMUCommand("sleep 2"), clearArgs())
+	})
+	if !ft.HasFailed {
+		t.Errorf("Test should have failed for not waiting on VM")
+	}
+
+	if err := vm.Wait(); err != nil {
+		t.Fatal(err)
 	}
 }
