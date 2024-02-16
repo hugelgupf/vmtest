@@ -2,21 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package uqemu provides a Go API for starting QEMU VMs with u-root initramfses.
+// Package quimage provides a Go API for creating QEMU VMs with u-root uimage initramfses.
 //
-// uqemu is mainly suitable for running QEMU-based integration tests.
+// Environment variables:
 //
-// The environment variable `VMTEST_QEMU` overrides the path to QEMU and the
-// first few arguments (defaults to "qemu"). For example:
-//
-//	VMTEST_QEMU='qemu-system-x86_64 -L . -m 4096 -enable-kvm'
-//
-// Other environment variables:
-//
-//	VMTEST_ARCH (used when Initramfs.Env.GOARCH is empty)
-//	VMTEST_KERNEL (used when Initramfs.VMOpts.Kernel is empty)
 //	VMTEST_INITRAMFS_OVERRIDE (when set, use instead of building an initramfs)
-package uqemu
+package quimage
 
 import (
 	"errors"

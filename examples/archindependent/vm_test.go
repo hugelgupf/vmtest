@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/u-root/mkuimage/uimage"
 )
 
@@ -13,7 +13,7 @@ func TestVM(t *testing.T) {
 	vm := qemu.StartT(t,
 		"vm",
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
 				"github.com/u-root/u-root/cmds/core/echo",

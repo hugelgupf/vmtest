@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/u-root/mkuimage/uimage"
 )
 
@@ -114,7 +114,7 @@ func startVM(t testing.TB, o *VMOptions) *qemu.VM {
 		qemu.WithAppendKernel("VMTEST_IN_GUEST=1"),
 	}
 	if len(o.Initramfs) > 0 {
-		qopts = append(qopts, uqemu.WithUimageT(t, o.Initramfs...))
+		qopts = append(qopts, quimage.WithUimageT(t, o.Initramfs...))
 	}
 
 	// Prepend our default options so user-supplied o.QEMUOpts supersede.

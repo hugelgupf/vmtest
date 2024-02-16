@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/u-root/mkuimage/uimage"
 )
 
@@ -65,7 +65,7 @@ shutdown
 			net := NewInterVM()
 			serverVM, err := qemu.Start(
 				qemu.ArchUseEnvv,
-				uqemu.WithUimageT(t,
+				quimage.WithUimageT(t,
 					uimage.WithInit("init"),
 					uimage.WithUinit("gosh", "script.sh"),
 					uimage.WithBusyboxCommands(
@@ -99,7 +99,7 @@ shutdown
 
 			clientVM, err := qemu.Start(
 				qemu.ArchUseEnvv,
-				uqemu.WithUimageT(t,
+				quimage.WithUimageT(t,
 					uimage.WithInit("init"),
 					uimage.WithUinit("gosh", "script.sh"),
 					uimage.WithBusyboxCommands(
@@ -203,7 +203,7 @@ shutdown
 			}
 			vm, err := qemu.Start(
 				qemu.ArchUseEnvv,
-				uqemu.WithUimageT(t,
+				quimage.WithUimageT(t,
 					uimage.WithInit("init"),
 					uimage.WithUinit("gosh", "script.sh"),
 					uimage.WithBusyboxCommands(
@@ -283,7 +283,7 @@ shutdown
 	pcap := filepath.Join(t.TempDir(), "out.pcap")
 	vm, err := qemu.Start(
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			uimage.WithUinit("gosh", "script.sh"),
 			uimage.WithBusyboxCommands(

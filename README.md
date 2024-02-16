@@ -14,6 +14,9 @@ vmtest is a Go API for launching QEMU VMs.
     * running tasks (goroutines) bound to the VM process lifetime, and
     * using expect-scripting to check for outputs.
 
+    * [`quimage`](https://pkg.go.dev/github.com/hugelgupf/vmtest/quimage)
+      can be used to configure a Go-based u-root initramfs to be used as the
+      root file system, including any arbitrary Go commands.
     * [`qnetwork`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qnetwork)
       (WIP) is an API to QEMU network devices.
     * [`qevent`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qevent)
@@ -23,9 +26,6 @@ vmtest is a Go API for launching QEMU VMs.
       [`GOCOVERDIR`-based](https://go.dev/doc/build-cover) integration test
       coverage.
 
-* [The `uqemu` package](https://pkg.go.dev/github.com/hugelgupf/vmtest/uqemu)
-  can be used to configure a Go-based u-root initramfs to be used as the boot
-  root file system, including any arbitrary Go commands.
 
 * [The `vmtest` package](https://pkg.go.dev/github.com/hugelgupf/vmtest) (WIP)
   contains
@@ -112,7 +112,7 @@ func TestStartVM(t *testing.T) {
         qemu.WithKernel("./foobar"),
 
         // Or omit and set VMTEST_INITRAMFS=./somewhere.cpio
-        // Or use u-root initramfs builder in uqemu package. See example below.
+        // Or use u-root initramfs builder in quimage package. See example below.
         qemu.WithInitramfs("./somewhere.cpio"),
 
         qemu.WithAppendKernel("console=ttyS0 earlyprintk=ttyS0"),
@@ -161,9 +161,11 @@ all architectures.
 
 ```go
 func TestStartVM(t *testing.T) {
-    vm, err := qemu.Start(
+    vm := qemu.StartT(
+        t,
+        "vm", // Prefix for t.Logf serial console lines.
         qemu.ArchUseEnvv,
-        uqemu.WithUimageT(t,
+        quimage.WithUimageT(t,
                 uimage.WithInit("init"),
                 uimage.WithUinit("shutdownafter", "--", "cat", "etc/thatfile"),
                 uimage.WithBusyboxCommands(

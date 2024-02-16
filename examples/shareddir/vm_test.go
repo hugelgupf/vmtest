@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/uqemu"
+	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/u-root/mkuimage/uimage"
 )
 
@@ -17,7 +17,7 @@ func TestMount(t *testing.T) {
 		t,
 		"vm",
 		qemu.ArchUseEnvv,
-		uqemu.WithUimageT(t,
+		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "cat", "/mount/9p/vmtestdir/LICENSE"),
 			uimage.WithBusyboxCommands(
