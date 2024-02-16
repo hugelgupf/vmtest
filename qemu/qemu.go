@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,7 +37,6 @@ import (
 	"time"
 
 	"github.com/Netflix/go-expect"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -655,5 +655,21 @@ func (n notifications) closeAll() {
 	for _, m := range n {
 		close(m.VMStarted)
 		close(m.VMExited)
+	}
+}
+
+// SkipWithoutQEMU skips the test when the QEMU environment variable is not
+// set.
+func SkipWithoutQEMU(tb testing.TB) {
+	if _, ok := os.LookupEnv("VMTEST_QEMU"); !ok {
+		tb.Skip("Skipping QEMU test as VMTEST_QEMU is not set")
+	}
+}
+
+// SkipIfNotArch skips this test if GuestArch() (which is either VMTEST_ARCH or
+// runtime.GOARCH) is not one of the given values.
+func SkipIfNotArch(tb testing.TB, allowed ...Arch) {
+	if arch := GuestArch(); !slices.Contains(allowed, arch) {
+		tb.Skipf("Skipping test because arch is %s, not in allowed set %v", arch, allowed)
 	}
 }

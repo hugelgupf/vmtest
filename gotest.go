@@ -141,7 +141,7 @@ func WithGoTestTimeout(timeout time.Duration) GoTestOpt {
 //
 //   - TODO: specify test, bench, fuzz filter. Flags for fuzzing.
 func RunGoTestsInVM(t testing.TB, pkgs []string, opts ...GoTestOpt) {
-	SkipWithoutQEMU(t)
+	qemu.SkipWithoutQEMU(t)
 
 	goOpts := &GoTestOptions{
 		Packages: pkgs,
