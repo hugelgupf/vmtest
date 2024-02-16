@@ -34,6 +34,10 @@ func gcovFilter(hdr *tar.Header) bool {
 // Assumes that the `vmmount` command has been used to mount the kernel
 // coverage 9P shared dir at /mount/9p/kcoverage.
 func CollectKernelCoverage() {
+	if _, err := os.Stat("/mount/9p/kcoverage"); os.IsNotExist(err) {
+		log.Printf("Skipping kernel coverage collection as /mount/9p/kcoverage does not exist")
+		return
+	}
 	if err := collectKernelCoverage("/mount/9p/kcoverage/kernel_coverage.tar"); err != nil {
 		log.Printf("Failed to collect kernel coverage: %v", err)
 	}
