@@ -53,7 +53,6 @@ func WithUimage(mods ...uimage.Modifier) Modifier {
 // If any command fails, the test fails.
 //
 //   - TODO: timeouts for individual individual commands.
-//   - TODO: It should check their exit status. Hahaha.
 func Run(t testing.TB, name, script string, mods ...Modifier) {
 	vm := Start(t, name, script, mods...)
 
