@@ -1,6 +1,7 @@
 package qnetwork
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,31 +12,26 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/qemu"
-	"github.com/hugelgupf/vmtest/qemu/quimage"
+	"github.com/hugelgupf/vmtest/scriptvm"
 	"github.com/u-root/mkuimage/uimage"
 )
 
 func TestInterVM(t *testing.T) {
 	serverScript := `
-set -x
 ip addr add 192.168.0.1/24 dev eth0
 ip link set eth0 up
 pxeserver -4=false -http-dir=/etc
-shutdown
 `
 	clientScript := `
-set -x
 ip addr add 192.168.0.2/24 dev eth0
 ip link set eth0 up
 ip a
 wget http://192.168.0.1/hello
 cat ./hello
 ls -l /sys/class/net/eth0/device/driver
-shutdown
 `
+
 	d := t.TempDir()
-	_ = os.WriteFile(filepath.Join(d, "server.sh"), []byte(serverScript), 0o777)
-	_ = os.WriteFile(filepath.Join(d, "client.sh"), []byte(clientScript), 0o777)
 	_ = os.WriteFile(filepath.Join(d, "hello"), []byte("all hello all world\n"), 0o777)
 
 	for _, tt := range []struct {
@@ -49,12 +45,6 @@ shutdown
 			wantDriver: "e1000",
 		},
 		{
-			nic:        NICE1000,
-			serverMAC:  net.HardwareAddr{0xe, 0, 0, 0, 1, 0},
-			clientMAC:  net.HardwareAddr{0xe, 0, 0, 0, 1, 1},
-			wantDriver: "e1000",
-		},
-		{
 			nic:        NICVirtioNet,
 			serverMAC:  net.HardwareAddr{0xe, 0, 0, 0, 1, 0},
 			clientMAC:  net.HardwareAddr{0xe, 0, 0, 0, 1, 1},
@@ -63,33 +53,22 @@ shutdown
 	} {
 		t.Run(fmt.Sprintf("%s-%s", tt.nic, tt.serverMAC), func(t *testing.T) {
 			net := NewInterVM()
-			serverVM, err := qemu.Start(
-				qemu.ArchUseEnvv,
-				quimage.WithUimageT(t,
-					uimage.WithInit("init"),
-					uimage.WithUinit("gosh", "script.sh"),
+			serverVM := scriptvm.Start(t, "server", serverScript,
+				scriptvm.WithUimage(
 					uimage.WithBusyboxCommands(
 						"github.com/u-root/u-root/cmds/core/cat",
-						"github.com/u-root/u-root/cmds/core/gosh",
-						"github.com/u-root/u-root/cmds/core/init",
 						"github.com/u-root/u-root/cmds/core/ip",
 						"github.com/u-root/u-root/cmds/core/ls",
-						"github.com/u-root/u-root/cmds/core/shutdown",
 						"github.com/u-root/u-root/cmds/core/wget",
 						"github.com/u-root/u-root/cmds/exp/pxeserver",
 					),
-					uimage.WithFiles(
-						filepath.Join(d, "server.sh")+":script.sh",
-						filepath.Join(d, "hello")+":etc/hello",
-					),
+					uimage.WithFiles(filepath.Join(d, "hello")+":etc/hello"),
 				),
-				qemu.LogSerialByLine(qemu.DefaultPrint("server", t.Logf)),
-				qemu.WithVMTimeout(90*time.Second),
-				net.NewVM(WithNIC[*DeviceOptions](tt.nic), WithMAC[*DeviceOptions](tt.serverMAC)),
+				scriptvm.WithQEMUFn(
+					qemu.WithVMTimeout(90*time.Second),
+					net.NewVM(WithDevice[SocketBackend](WithNIC(tt.nic), WithMAC(tt.serverMAC))),
+				),
 			)
-			if err != nil {
-				t.Fatalf("Failed to start server VM: %v", err)
-			}
 			t.Cleanup(func() {
 				if err := serverVM.Kill(); err != nil {
 					t.Fatal(err)
@@ -97,32 +76,20 @@ shutdown
 				_ = serverVM.Wait()
 			})
 
-			clientVM, err := qemu.Start(
-				qemu.ArchUseEnvv,
-				quimage.WithUimageT(t,
-					uimage.WithInit("init"),
-					uimage.WithUinit("gosh", "script.sh"),
+			clientVM := scriptvm.Start(t, "client", clientScript,
+				scriptvm.WithUimage(
 					uimage.WithBusyboxCommands(
 						"github.com/u-root/u-root/cmds/core/cat",
-						"github.com/u-root/u-root/cmds/core/gosh",
-						"github.com/u-root/u-root/cmds/core/init",
 						"github.com/u-root/u-root/cmds/core/ip",
 						"github.com/u-root/u-root/cmds/core/ls",
-						"github.com/u-root/u-root/cmds/core/shutdown",
 						"github.com/u-root/u-root/cmds/core/wget",
-						"github.com/u-root/u-root/cmds/exp/pxeserver",
-					),
-					uimage.WithFiles(
-						filepath.Join(d, "client.sh")+":script.sh",
 					),
 				),
-				qemu.LogSerialByLine(qemu.DefaultPrint("client", t.Logf)),
-				qemu.WithVMTimeout(90*time.Second),
-				net.NewVM(WithNIC[*DeviceOptions](tt.nic), WithMAC[*DeviceOptions](tt.clientMAC)),
+				scriptvm.WithQEMUFn(
+					qemu.WithVMTimeout(90*time.Second),
+					net.NewVM(WithDevice[SocketBackend](WithNIC(tt.nic), WithMAC(tt.clientMAC))),
+				),
 			)
-			if err != nil {
-				t.Fatalf("Failed to start client VM: %v", err)
-			}
 			if tt.clientMAC != nil {
 				// Output of `ip a`
 				if _, err := clientVM.Console.ExpectString(tt.clientMAC.String()); err != nil {
@@ -167,11 +134,6 @@ func TestUserIPv4(t *testing.T) {
 			wantDriver: "e1000",
 		},
 		{
-			nic:        NICE1000,
-			clientMAC:  net.HardwareAddr{0xe, 0, 0, 0, 1, 1},
-			wantDriver: "e1000",
-		},
-		{
 			nic:        NICVirtioNet,
 			clientMAC:  net.HardwareAddr{0xe, 0, 0, 0, 1, 1},
 			wantDriver: "virtio_net",
@@ -184,49 +146,32 @@ func TestUserIPv4(t *testing.T) {
 			}
 			port := ln.Addr().(*net.TCPAddr).Port
 
-			clientScript := `
-set -x
-ip addr add 192.168.0.10/24 dev eth0
-ip link set eth0 up
-ip a
-wget http://192.168.0.2:%d/hello
-cat ./hello
-ls -l /sys/class/net/eth0/device/driver
-shutdown
-`
+			script := fmt.Sprintf(`
+				ip addr add 192.168.0.10/24 dev eth0
+				ip link set eth0 up
+				ip a
+				wget http://192.168.0.2:%d/hello
+				cat ./hello
+				ls -l /sys/class/net/eth0/device/driver`, port)
 
-			d := t.TempDir()
-			_ = os.WriteFile(filepath.Join(d, "client.sh"), []byte(fmt.Sprintf(clientScript, port)), 0o777)
-
-			s := &http.Server{
-				Handler: mux,
-			}
-			vm, err := qemu.Start(
-				qemu.ArchUseEnvv,
-				quimage.WithUimageT(t,
-					uimage.WithInit("init"),
-					uimage.WithUinit("gosh", "script.sh"),
+			vm := scriptvm.Start(t, "vm", script,
+				scriptvm.WithUimage(
 					uimage.WithBusyboxCommands(
 						"github.com/u-root/u-root/cmds/core/cat",
-						"github.com/u-root/u-root/cmds/core/gosh",
-						"github.com/u-root/u-root/cmds/core/init",
 						"github.com/u-root/u-root/cmds/core/ip",
 						"github.com/u-root/u-root/cmds/core/ls",
-						"github.com/u-root/u-root/cmds/core/shutdown",
 						"github.com/u-root/u-root/cmds/core/wget",
 					),
-					uimage.WithFiles(
-						filepath.Join(d, "client.sh")+":script.sh",
+				),
+				scriptvm.WithQEMUFn(
+					qemu.WithVMTimeout(60*time.Second),
+					ServeHTTP(&http.Server{Handler: mux}, ln),
+					HostNetwork("192.168.0.4/24",
+						WithDevice[UserBackend](WithNIC(tt.nic), WithMAC(tt.clientMAC)),
+						WithUser(WithUserArg("domainname=osfw.dev")),
 					),
 				),
-				qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
-				qemu.WithVMTimeout(60*time.Second),
-				ServeHTTP(s, ln),
-				IPv4HostNetwork("192.168.0.0/24", WithNIC[*UserOptions](tt.nic), WithMAC[*UserOptions](tt.clientMAC), WithUserArg("domainname=osfw.dev")),
 			)
-			if err != nil {
-				t.Fatalf("Failed to start client VM: %v", err)
-			}
 			if tt.clientMAC != nil {
 				// Output of `ip a`
 				if _, err := vm.Console.ExpectString(tt.clientMAC.String()); err != nil {
@@ -266,46 +211,28 @@ func TestPCAP(t *testing.T) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 
-	clientScript := `
-set -x
-ip addr add 192.168.0.10/24 dev eth0
-ip link set eth0 up
-wget http://192.168.0.2:%d/hello
-cat ./hello
-shutdown
-`
-	d := t.TempDir()
-	_ = os.WriteFile(filepath.Join(d, "client.sh"), []byte(fmt.Sprintf(clientScript, port)), 0o777)
+	script := fmt.Sprintf(`
+	ip addr add 192.168.0.10/24 dev eth0
+	ip link set eth0 up
+	wget http://192.168.0.2:%d/hello
+	cat ./hello`, port)
 
-	s := &http.Server{
-		Handler: mux,
-	}
 	pcap := filepath.Join(t.TempDir(), "out.pcap")
-	vm, err := qemu.Start(
-		qemu.ArchUseEnvv,
-		quimage.WithUimageT(t,
-			uimage.WithInit("init"),
-			uimage.WithUinit("gosh", "script.sh"),
+
+	vm := scriptvm.Start(t, "vm", script,
+		scriptvm.WithUimage(
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/cat",
-				"github.com/u-root/u-root/cmds/core/gosh",
-				"github.com/u-root/u-root/cmds/core/init",
 				"github.com/u-root/u-root/cmds/core/ip",
-				"github.com/u-root/u-root/cmds/core/shutdown",
 				"github.com/u-root/u-root/cmds/core/wget",
 			),
-			uimage.WithFiles(
-				filepath.Join(d, "client.sh")+":script.sh",
-			),
 		),
-		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
-		qemu.WithVMTimeout(60*time.Second),
-		ServeHTTP(s, ln),
-		IPv4HostNetwork("192.168.0.0/24", WithPCAP[*UserOptions](pcap)),
+		scriptvm.WithQEMUFn(
+			qemu.WithVMTimeout(60*time.Second),
+			ServeHTTP(&http.Server{Handler: mux}, ln),
+			HostNetwork("192.168.0.4/24", WithPCAP[UserBackend](pcap)),
+		),
 	)
-	if err != nil {
-		t.Fatalf("Failed to start client VM: %v", err)
-	}
 	// Output of `cat ./hello`
 	if _, err := vm.Console.ExpectString("all hello all world"); err != nil {
 		t.Fatal(err)
@@ -321,12 +248,75 @@ shutdown
 	}
 }
 
-func TestIPv4CIDRFail(t *testing.T) {
-	if _, err := qemu.Start(qemu.ArchUseEnvv, IPv4HostNetwork("foobar")); err == nil {
+func TestCIDRFail(t *testing.T) {
+	if _, err := qemu.Start(qemu.ArchUseEnvv, HostNetwork("foobar")); err == nil {
 		t.Fatalf("Expected error parsing CIDR, got nil")
 	}
 
-	if _, err := qemu.Start(qemu.ArchUseEnvv, IPv4HostNetwork("fe80::/128")); err == nil {
-		t.Fatalf("Expected error putting IPv6 address, got nil")
+	if _, err := qemu.Start(qemu.ArchUseEnvv, HostNetwork("fc00::/64", WithUser(WithUserCIDR("fec0::/64")))); !errors.Is(err, os.ErrInvalid) {
+		t.Fatalf("Expected error parsing CIDR, got nil")
+	}
+
+	if _, err := qemu.Start(qemu.ArchUseEnvv, HostNetwork("192.168.0.0/24", WithUser(WithUserCIDR("192.169.0.0/24")))); !errors.Is(err, os.ErrInvalid) {
+		t.Fatalf("Expected error parsing CIDR, got nil")
+	}
+}
+
+func TestUserIPv6(t *testing.T) {
+	fs := fstest.MapFS{
+		"hello": &fstest.MapFile{
+			Data:    []byte("all hello all world\n"),
+			Mode:    0o777,
+			ModTime: time.Now(),
+		},
+	}
+
+	// Serve HTTP on the host on a random port.
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.FS(fs)))
+
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	script := fmt.Sprintf(`
+	ip addr add fec0::8/128 dev eth0
+	ip link set eth0 up
+	ip a
+	ip -6 neigh
+	ip -6 r
+
+	# Wait for routes and neighbor requests to be there.
+	# TODO: a better way to wait for the route you want to be there.
+	sleep 10
+	ip -6 neigh
+	ip -6 r
+	wget http://[fec0::2]:%d/hello
+	cat ./hello
+	`, port)
+
+	vm := scriptvm.Start(t, "vm", script,
+		scriptvm.WithUimage(
+			uimage.WithBusyboxCommands(
+				"github.com/u-root/u-root/cmds/core/cat",
+				"github.com/u-root/u-root/cmds/core/ip",
+				"github.com/u-root/u-root/cmds/core/sleep",
+				"github.com/u-root/u-root/cmds/core/wget",
+			),
+		),
+		scriptvm.WithQEMUFn(
+			qemu.WithVMTimeout(60*time.Second),
+			ServeHTTP(&http.Server{Handler: mux}, ln),
+			HostNetwork("fec0::/64"),
+		),
+	)
+	// Output of `cat ./hello`
+	if _, err := vm.Console.ExpectString("all hello all world"); err != nil {
+		t.Fatal(err)
+	}
+	if err := vm.Wait(); err != nil {
+		t.Fatal(err)
 	}
 }
