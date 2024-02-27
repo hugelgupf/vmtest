@@ -5,6 +5,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
+	"github.com/hugelgupf/vmtest/internal/cover"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/u-root/mkuimage/uimage"
 )
@@ -15,6 +16,7 @@ func TestStartVM(t *testing.T) {
 	govmtest.Run(t, "vm",
 		govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gohello"),
 		govmtest.WithUimage(
+			cover.WithCoverInstead("github.com/hugelgupf/vmtest/vminit/gouinit"),
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/dhclient",
 				"github.com/u-root/u-root/cmds/core/ls",

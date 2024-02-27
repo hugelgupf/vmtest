@@ -3,6 +3,7 @@ package helloworld
 import (
 	"testing"
 
+	"github.com/hugelgupf/vmtest/internal/cover"
 	"github.com/hugelgupf/vmtest/internal/failtesting"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/scriptvm"
@@ -15,6 +16,7 @@ func TestStartVM(t *testing.T) {
 	ft := &failtesting.TB{TB: t}
 	scriptvm.Run(ft, "vm", "false", scriptvm.WithUimage(
 		uimage.WithBusyboxCommands("github.com/u-root/u-root/cmds/core/false"),
+		cover.WithCoverInstead("github.com/hugelgupf/vmtest/vminit/shelluinit"),
 	))
 
 	if !ft.HasFailed {

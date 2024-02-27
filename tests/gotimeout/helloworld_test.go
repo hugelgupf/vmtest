@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hugelgupf/vmtest/govmtest"
+	"github.com/hugelgupf/vmtest/internal/cover"
 	"github.com/hugelgupf/vmtest/internal/failtesting"
 	"github.com/hugelgupf/vmtest/qemu"
 )
@@ -17,6 +18,7 @@ func TestStartVM(t *testing.T) {
 	govmtest.Run(ft, "vm",
 		govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gotimeout"),
 		govmtest.WithGoTestTimeout(2*time.Second),
+		govmtest.WithUimage(cover.WithCoverInstead("github.com/hugelgupf/vmtest/vminit/gouinit")),
 	)
 
 	if !ft.HasFailed {
