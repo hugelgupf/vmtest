@@ -12,6 +12,7 @@ import (
 
 	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
+	"github.com/hugelgupf/vmtest/internal/cover"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/testtmp"
 	"github.com/u-root/gobusybox/src/pkg/golang"
@@ -33,7 +34,10 @@ func TestStartVM(t *testing.T) {
 	}
 
 	t.Run("test", func(t *testing.T) {
-		govmtest.Run(t, "vm", govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gocover"))
+		govmtest.Run(t, "vm",
+			govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gocover"),
+			govmtest.WithUimage(cover.WithCoverInstead("github.com/hugelgupf/vmtest/vminit/gouinit")),
+		)
 	})
 
 	// Check VMTEST_GO_PROFILE coverage collected.

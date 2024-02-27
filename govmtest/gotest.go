@@ -201,9 +201,6 @@ func Run(t testing.TB, name string, mods ...Modifier) {
 			"github.com/u-root/u-root/cmds/core/init",
 			"github.com/hugelgupf/vmtest/vminit/shutdownafter",
 			"github.com/hugelgupf/vmtest/vminit/vmmount",
-		),
-		// Collect coverage of gouinit.
-		uimage.WithCoveredCommands(
 			"github.com/hugelgupf/vmtest/vminit/gouinit",
 		),
 		uimage.WithBinaryCommands("cmd/test2json"),

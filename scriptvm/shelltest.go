@@ -95,9 +95,6 @@ func Start(t testing.TB, name, script string, mods ...Modifier) *qemu.VM {
 			"github.com/u-root/u-root/cmds/core/gosh",
 			"github.com/hugelgupf/vmtest/vminit/shutdownafter",
 			"github.com/hugelgupf/vmtest/vminit/vmmount",
-		),
-		// Collect coverage of shelluinit.
-		uimage.WithCoveredCommands(
 			"github.com/hugelgupf/vmtest/vminit/shelluinit",
 		),
 		uimage.WithInit("init"),

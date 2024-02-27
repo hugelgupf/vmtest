@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/hugelgupf/vmtest/internal/cover"
 	"github.com/hugelgupf/vmtest/qemu"
 	"github.com/hugelgupf/vmtest/scriptvm"
 	"github.com/hugelgupf/vmtest/testtmp"
@@ -30,6 +31,7 @@ func TestStartVM(t *testing.T) {
 
 			scriptvm.Run(t, "vm", script,
 				scriptvm.WithUimage(
+					cover.WithCoverInstead("github.com/hugelgupf/vmtest/vminit/shelluinit"),
 					uimage.WithCoveredCommands(
 						"github.com/hugelgupf/vmtest/tests/cmds/donothing",
 					),

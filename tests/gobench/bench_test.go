@@ -5,10 +5,14 @@ import (
 
 	"github.com/hugelgupf/vmtest/govmtest"
 	"github.com/hugelgupf/vmtest/guest"
+	"github.com/hugelgupf/vmtest/internal/cover"
 )
 
 func TestRunBenchmarkInVM(t *testing.T) {
-	govmtest.Run(t, "vm", govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gobench"))
+	govmtest.Run(t, "vm",
+		govmtest.WithPackageToTest("github.com/hugelgupf/vmtest/tests/gobench"),
+		govmtest.WithUimage(cover.WithCoverInstead("github.com/hugelgupf/vmtest/vminit/gouinit")),
+	)
 }
 
 func fib(n int) int {
