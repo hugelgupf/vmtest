@@ -28,11 +28,13 @@ var (
 	keepArtifacts = flag.Bool("keep-artifacts", false, "Keep artifacts directory available after exiting (alias -k)")
 	configFile    = flag.String("config", "", "Path to YAML config file")
 	artifactsDir  = flag.String("artifacts-dir", "", "Directory to store artifacts in, will be created if not exist (default: temp dir)")
+	quiet         = flag.Bool("quiet", false, "Suppress output from docker image downloads")
 )
 
 func init() {
 	flag.BoolVar(keepArtifacts, "k", false, "Keep artifacts directory available after exiting")
 	flag.StringVar(artifactsDir, "d", "", "Directory to store artifacts in, will be created if not exist (default: temp dir)")
+	flag.BoolVar(quiet, "q", false, "Suppress output from docker image downloads")
 }
 
 func main() {
@@ -172,7 +174,11 @@ func run() error {
 	c := archConfig(config)
 
 	ctx := context.Background()
-	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
+	var clientOpts []dagger.ClientOpt
+	if !*quiet {
+		clientOpts = append(clientOpts, dagger.WithLogOutput(os.Stdout))
+	}
+	client, err := dagger.Connect(ctx, clientOpts...)
 	if err != nil {
 		return fmt.Errorf("unable to connect to client: %w", err)
 	}
