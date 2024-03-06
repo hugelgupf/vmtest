@@ -14,7 +14,7 @@ vmtest is a Go API for launching QEMU VMs.
     * running tasks (goroutines) bound to the VM process lifetime, and
     * using expect-scripting to check for outputs.
 
-    * [`quimage`](https://pkg.go.dev/github.com/hugelgupf/vmtest/quimage)
+    * [`quimage`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/quimage)
       can be used to configure a Go-based u-root initramfs to be used as the
       root file system, including any arbitrary Go commands.
     * [`qnetwork`](https://pkg.go.dev/github.com/hugelgupf/vmtest/qemu/qnetwork)
