@@ -8,7 +8,6 @@ import (
 
 	"github.com/hugelgupf/vmtest/guest"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
-	"golang.org/x/sys/unix"
 )
 
 var skipClose = flag.Bool("skip-close", false, "Skip closing event channel")
@@ -40,8 +39,4 @@ func main() {
 	}
 
 	log.Println("TEST PASSED")
-
-	if err := unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF); err != nil {
-		log.Fatalf("Failed to shut down: %v", err)
-	}
 }

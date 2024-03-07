@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hugelgupf/vmtest/qemu"
+	"github.com/hugelgupf/vmtest/qemu/qcoverage"
 	"github.com/hugelgupf/vmtest/qemu/quimage"
 	"github.com/hugelgupf/vmtest/tests/cmds/eventemitter/event"
 	"github.com/u-root/mkuimage/uimage"
@@ -23,14 +24,19 @@ func TestEventChannel(t *testing.T) {
 		qemu.ArchUseEnvv,
 		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
-			uimage.WithUinit("eventemitter"),
+			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "eventemitter"),
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+				"github.com/hugelgupf/vmtest/vminit/vmmount",
+			),
+			uimage.WithCoveredCommands(
 				"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
 			),
 		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		EventChannel[event.Event]("test", events),
+		qcoverage.ShareGOCOVERDIR(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
@@ -65,14 +71,19 @@ func TestEventChannelErrorWithoutDoneEvent(t *testing.T) {
 		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
 			// Instruct eventemitter not to close the event channel.
-			uimage.WithUinit("eventemitter", "-skip-close"),
+			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "eventemitter", "-skip-close"),
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+				"github.com/hugelgupf/vmtest/vminit/vmmount",
+			),
+			uimage.WithCoveredCommands(
 				"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
 			),
 		),
 		qemu.LogSerialByLine(qemu.DefaultPrint("vm", t.Logf)),
 		EventChannel[event.Event]("test", events),
+		qcoverage.ShareGOCOVERDIR(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
@@ -102,9 +113,13 @@ func TestEventChannelCallback(t *testing.T) {
 		qemu.ArchUseEnvv,
 		quimage.WithUimageT(t,
 			uimage.WithInit("init"),
-			uimage.WithUinit("eventemitter"),
+			uimage.WithUinit("shutdownafter", "--", "vmmount", "--", "eventemitter"),
 			uimage.WithBusyboxCommands(
 				"github.com/u-root/u-root/cmds/core/init",
+				"github.com/hugelgupf/vmtest/vminit/shutdownafter",
+				"github.com/hugelgupf/vmtest/vminit/vmmount",
+			),
+			uimage.WithCoveredCommands(
 				"github.com/hugelgupf/vmtest/tests/cmds/eventemitter",
 			),
 		),
@@ -112,6 +127,7 @@ func TestEventChannelCallback(t *testing.T) {
 		EventChannelCallback[event.Event]("test", func(e event.Event) {
 			events = append(events, e)
 		}),
+		qcoverage.ShareGOCOVERDIR(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to start VM: %v", err)
