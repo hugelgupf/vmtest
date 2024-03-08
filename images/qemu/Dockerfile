@@ -57,6 +57,18 @@ RUN cd qemu && mkdir build && cd build && ../configure                 \
         && \
       make -j$(($(nproc) * 2 + 1)) \
         pc-bios/optionrom/all     \
+        pc-bios/edk2-aarch64-code.fd \
+        pc-bios/edk2-arm-code.fd \
+        pc-bios/edk2-arm-vars.fd \
+        pc-bios/edk2-i386-code.fd \
+        pc-bios/edk2-i386-secure-code.fd \
+        pc-bios/edk2-i386-vars.fd \
+        pc-bios/edk2-x86_64-code.fd \
+        pc-bios/edk2-x86_64-secure-code.fd \
+        pc-bios/bamboo.dtb \
+        pc-bios/canyonlands.dtb \
+        pc-bios/petalogix-s3adsp1800.dtb \
+        pc-bios/petalogix-ml605.dtb \
         fsdev/virtfs-proxy-helper \
         qemu-system-x86_64        \
         qemu-system-aarch64       \
