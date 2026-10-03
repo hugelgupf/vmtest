@@ -23,7 +23,7 @@ RUN apt-get update &&                          \
 WORKDIR /root
 
 # Build linux
-RUN git clone --depth=1 --branch=v6.6 https://github.com/torvalds/linux;
+RUN git clone --depth=1 --branch=v6.18.54 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git;
 
 COPY config_linux.txt linux/.config
 RUN chmod 0444 linux/.config;
